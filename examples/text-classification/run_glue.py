@@ -134,16 +134,8 @@ def main():
     )
 
     # Get datasets
-    train_dataset = (
-        GlueDataset(data_args, tokenizer=tokenizer, local_rank=training_args.local_rank)
-        if training_args.do_train
-        else None
-    )
-    eval_dataset = (
-        GlueDataset(data_args, tokenizer=tokenizer, local_rank=training_args.local_rank, evaluate=True)
-        if training_args.do_eval
-        else None
-    )
+    train_dataset = GlueDataset(data_args, tokenizer=tokenizer) if training_args.do_train else None
+    eval_dataset = GlueDataset(data_args, tokenizer=tokenizer, evaluate=True) if training_args.do_eval else None
 
     def compute_metrics(p: EvalPrediction) -> Dict:
         if output_mode == "classification":
@@ -174,16 +166,14 @@ def main():
 
     # Evaluation
     results = {}
-    if training_args.do_eval and training_args.local_rank in [-1, 0]:
+    if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
         # Loop to handle MNLI double evaluation (matched, mis-matched)
         eval_datasets = [eval_dataset]
         if data_args.task_name == "mnli":
             mnli_mm_data_args = dataclasses.replace(data_args, task_name="mnli-mm")
-            eval_datasets.append(
-                GlueDataset(mnli_mm_data_args, tokenizer=tokenizer, local_rank=training_args.local_rank, evaluate=True)
-            )
+            eval_datasets.append(GlueDataset(mnli_mm_data_args, tokenizer=tokenizer, evaluate=True))
 
         for eval_dataset in eval_datasets:
             result = trainer.evaluate(eval_dataset=eval_dataset)
@@ -191,11 +181,12 @@ def main():
             output_eval_file = os.path.join(
                 training_args.output_dir, f"eval_results_{eval_dataset.args.task_name}.txt"
             )
-            with open(output_eval_file, "w") as writer:
-                logger.info("***** Eval results {} *****".format(eval_dataset.args.task_name))
-                for key, value in result.items():
-                    logger.info("  %s = %s", key, value)
-                    writer.write("%s = %s\n" % (key, value))
+            if trainer.is_world_master():
+                with open(output_eval_file, "w") as writer:
+                    logger.info("***** Eval results {} *****".format(eval_dataset.args.task_name))
+                    for key, value in result.items():
+                        logger.info("  %s = %s", key, value)
+                        writer.write("%s = %s\n" % (key, value))
 
             results.update(result)
 

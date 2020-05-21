@@ -26,7 +26,11 @@ author = u'huggingface'
 # The short X.Y version
 version = u''
 # The full version, including alpha/beta/rc tags
+<<<<<<< HEAD
 release = u'2.9.0'
+=======
+release = u'2.9.1'
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 
 # -- General configuration ---------------------------------------------------

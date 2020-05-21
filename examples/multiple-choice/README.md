@@ -8,7 +8,11 @@ Download [swag](https://github.com/rowanz/swagaf/tree/master/data) data
 ```bash
 #training on 4 tesla V100(16GB) GPUS
 export SWAG_DIR=/path/to/swag_data_dir
+<<<<<<< HEAD
 python ./examples/run_multiple_choice.py \
+=======
+python ./examples/multiple-choice/run_multiple_choice.py \
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 --task_name swag \
 --model_name_or_path roberta-base \
 --do_train \
@@ -29,3 +33,31 @@ Training with the defined hyper-parameters yields the following results:
 eval_acc = 0.8338998300509847
 eval_loss = 0.44457291918821606
 ```
+<<<<<<< HEAD
+=======
+
+
+## Tensorflow
+
+```bash
+export SWAG_DIR=/path/to/swag_data_dir
+python ./examples/multiple-choice/run_tf_multiple_choice.py \
+--task_name swag \
+--model_name_or_path bert-base-cased \
+--do_train \
+--do_eval \
+--data_dir $SWAG_DIR \
+--learning_rate 5e-5 \
+--num_train_epochs 3 \
+--max_seq_length 80 \
+--output_dir models_bert/swag_base \
+--per_gpu_eval_batch_size=16 \
+--per_gpu_train_batch_size=16 \
+--logging-dir logs \
+--gradient_accumulation_steps 2 \
+--overwrite_output
+```
+
+# Run it in colab
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ViktorAlm/notebooks/blob/master/MPC_GPU_Demo_for_TF_and_PT.ipynb)
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e

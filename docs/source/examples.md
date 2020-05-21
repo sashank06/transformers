@@ -23,13 +23,21 @@ pip install -r ./examples/requirements.txt
 | [GLUE](#glue) | Examples running BERT/XLM/XLNet/RoBERTa on the 9 GLUE tasks. Examples feature distributed training as well as half-precision. |
 | [SQuAD](#squad) | Using BERT/RoBERTa/XLNet/XLM for question answering, examples with distributed training. |
 | [Multiple Choice](#multiple-choice) | Examples running BERT/XLNet/RoBERTa on the SWAG/RACE/ARC tasks. |
+<<<<<<< HEAD
 | [Named Entity Recognition](https://github.com/huggingface/transformers/tree/master/examples/ner) | Using BERT for Named Entity Recognition (NER) on the CoNLL 2003 dataset, examples with distributed training. |
+=======
+| [Named Entity Recognition](https://github.com/huggingface/transformers/tree/master/examples/token-classification) | Using BERT for Named Entity Recognition (NER) on the CoNLL 2003 dataset, examples with distributed training. |
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 | [XNLI](#xnli) | Examples running BERT/XLM on the XNLI benchmark. |
 | [Adversarial evaluation of model performances](#adversarial-evaluation-of-model-performances) | Testing a model with adversarial evaluation of natural language inference on the Heuristic Analysis for NLI Systems (HANS) dataset (McCoy et al., 2019.) |
 
 ## TensorFlow 2.0 Bert models on GLUE
 
+<<<<<<< HEAD
 Based on the script [`run_tf_glue.py`](https://github.com/huggingface/transformers/blob/master/examples/run_tf_glue.py).
+=======
+Based on the script [`run_tf_glue.py`](https://github.com/huggingface/transformers/blob/master/examples/text-classification/run_tf_glue.py).
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 Fine-tuning the library TensorFlow 2.0 Bert model for sequence classification on the  MRPC task of the GLUE benchmark: [General Language Understanding Evaluation](https://gluebenchmark.com/).
 
@@ -93,7 +101,11 @@ python run_glue_tpu.py \
 
 ## Language model training
 
+<<<<<<< HEAD
 Based on the script [`run_language_modeling.py`](https://github.com/huggingface/transformers/blob/master/examples/run_language_modeling.py).
+=======
+Based on the script [`run_language_modeling.py`](https://github.com/huggingface/transformers/blob/master/examples/language-modeling/run_language_modeling.py).
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 Fine-tuning (or training from scratch) the library models for language modeling on a text dataset for GPT, GPT-2, BERT and RoBERTa (DistilBERT
 to be added soon). GPT and GPT-2 are fine-tuned using a causal language modeling (CLM) loss while BERT and RoBERTa
@@ -155,7 +167,11 @@ python run_language_modeling.py \
 
 ## Language generation
 
+<<<<<<< HEAD
 Based on the script [`run_generation.py`](https://github.com/huggingface/transformers/blob/master/examples/run_generation.py).
+=======
+Based on the script [`run_generation.py`](https://github.com/huggingface/transformers/blob/master/examples/text-generation/run_generation.py).
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 Conditional text generation using the auto-regressive models of the library: GPT, GPT-2, Transformer-XL, XLNet, CTRL.
 A similar script is used for our official demo [Write With Transfomer](https://transformer.huggingface.co), where you
@@ -364,7 +380,11 @@ Download [swag](https://github.com/rowanz/swagaf/tree/master/data) data
 ```bash
 #training on 4 tesla V100(16GB) GPUS
 export SWAG_DIR=/path/to/swag_data_dir
+<<<<<<< HEAD
 python ./examples/run_multiple_choice.py \
+=======
+python ./examples/multiple-choice/run_multiple_choice.py \
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 --task_name swag \
 --model_name_or_path roberta-base \
 --do_train \
@@ -388,7 +408,11 @@ eval_loss = 0.44457291918821606
 
 ## SQuAD
 
+<<<<<<< HEAD
 Based on the script [`run_squad.py`](https://github.com/huggingface/transformers/blob/master/examples/run_squad.py).
+=======
+Based on the script [`run_squad.py`](https://github.com/huggingface/transformers/blob/master/examples/question-answering/run_squad.py).
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 #### Fine-tuning BERT on SQuAD1.0
 
@@ -437,7 +461,11 @@ exact_match = 81.22
 Here is an example using distributed training on 8 V100 GPUs and Bert Whole Word Masking uncased model to reach a F1 > 93 on SQuAD1.1:
 
 ```bash
+<<<<<<< HEAD
 python -m torch.distributed.launch --nproc_per_node=8 ./examples/run_squad.py \
+=======
+python -m torch.distributed.launch --nproc_per_node=8 ./examples/question-answering/run_squad.py \
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
     --model_type bert \
     --model_name_or_path bert-large-uncased-whole-word-masking \
     --do_train \
@@ -548,7 +576,11 @@ Larger batch size may improve the performance while costing more memory.
 
 ## XNLI
 
+<<<<<<< HEAD
 Based on the script [`run_xnli.py`](https://github.com/huggingface/transformers/blob/master/examples/run_xnli.py).
+=======
+Based on the script [`run_xnli.py`](https://github.com/huggingface/transformers/blob/master/examples/text-classification/run_xnli.py).
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 [XNLI](https://www.nyu.edu/projects/bowman/xnli/) is crowd-sourced dataset based on [MultiNLI](http://www.nyu.edu/projects/bowman/multinli/). It is an evaluation benchmark for cross-lingual text representations. Pairs of text are labeled with textual entailment annotations for 15 different languages (including both high-resource language such as English and low-resource languages such as Swahili).
 

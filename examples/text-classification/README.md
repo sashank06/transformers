@@ -2,7 +2,11 @@
 
 # Run TensorFlow 2.0 version
 
+<<<<<<< HEAD
 Based on the script [`run_tf_glue.py`](https://github.com/huggingface/transformers/blob/master/examples/run_tf_glue.py).
+=======
+Based on the script [`run_tf_glue.py`](https://github.com/huggingface/transformers/blob/master/examples/text-classification/run_tf_glue.py).
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 Fine-tuning the library TensorFlow 2.0 Bert model for sequence classification on the  MRPC task of the GLUE benchmark: [General Language Understanding Evaluation](https://gluebenchmark.com/).
 
@@ -85,10 +89,19 @@ CoLA, SST-2. The following section provides details on how to run half-precision
 said, there shouldn’t be any issues in running half-precision training with the remaining GLUE tasks as well,
 since the data processor for each task inherits from the base class DataProcessor.
 
+<<<<<<< HEAD
 ## Running on TPUs
 
 You can accelerate your workloads on Google's TPUs. For information on how to setup your TPU environment refer to this
 [README](https://github.com/pytorch/xla/blob/master/README.md).
+=======
+## Running on TPUs in PyTorch
+
+**Update**: read the more up-to-date [Running on TPUs](../README.md#running-on-tpus) in the main README.md instead.
+
+Even when running PyTorch, you can accelerate your workloads on Google's TPUs, using `pytorch/xla`. For information on how to setup your TPU environment refer to the
+[pytorch/xla README](https://github.com/pytorch/xla/blob/master/README.md).
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 The following are some examples of running the `*_tpu.py` finetuning scripts on TPUs. All steps for data preparation are
 identical to your normal GPU + Huggingface setup.
@@ -101,7 +114,10 @@ export GLUE_DIR=/path/to/glue
 export TASK_NAME=MNLI
 
 python run_glue_tpu.py \
+<<<<<<< HEAD
   --model_type bert \
+=======
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
   --model_name_or_path bert-base-cased \
   --task_name $TASK_NAME \
   --do_train \
@@ -115,8 +131,12 @@ python run_glue_tpu.py \
   --overwrite_output_dir \
   --logging_steps 50 \
   --save_steps 200 \
+<<<<<<< HEAD
   --num_cores=8 \
   --only_log_master
+=======
+  --num_cores=8
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 ```
 
 ### MRPC
@@ -256,7 +276,11 @@ TEST RESULTS {'val_loss': tensor(0.0707), 'precision': 0.852427800698191, 'recal
 
 # XNLI
 
+<<<<<<< HEAD
 Based on the script [`run_xnli.py`](https://github.com/huggingface/transformers/blob/master/examples/run_xnli.py).
+=======
+Based on the script [`run_xnli.py`](https://github.com/huggingface/transformers/blob/master/examples/text-classification/run_xnli.py).
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 [XNLI](https://www.nyu.edu/projects/bowman/xnli/) is crowd-sourced dataset based on [MultiNLI](http://www.nyu.edu/projects/bowman/multinli/). It is an evaluation benchmark for cross-lingual text representations. Pairs of text are labeled with textual entailment annotations for 15 different languages (including both high-resource language such as English and low-resource languages such as Swahili).
 

@@ -2,7 +2,11 @@
 # There's no way to ignore "F401 '...' imported but unused" warnings in this
 # module, but to preserve other warnings. So, don't check this module at all.
 
+<<<<<<< HEAD
 __version__ = "2.9.0"
+=======
+__version__ = "2.9.1"
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 # Work around to update TensorFlow's absl.logging threshold which alters the
 # default Python logging output behavior when present.
@@ -44,6 +48,7 @@ from .configuration_electra import ELECTRA_PRETRAINED_CONFIG_ARCHIVE_MAP, Electr
 from .configuration_encoder_decoder import EncoderDecoderConfig
 from .configuration_flaubert import FLAUBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, FlaubertConfig
 from .configuration_gpt2 import GPT2_PRETRAINED_CONFIG_ARCHIVE_MAP, GPT2Config
+from .configuration_longformer import LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, LongformerConfig
 from .configuration_marian import MarianConfig
 from .configuration_mmbt import MMBTConfig
 from .configuration_openai import OPENAI_GPT_PRETRAINED_CONFIG_ARCHIVE_MAP, OpenAIGPTConfig
@@ -138,6 +143,7 @@ from .tokenization_distilbert import DistilBertTokenizer, DistilBertTokenizerFas
 from .tokenization_electra import ElectraTokenizer, ElectraTokenizerFast
 from .tokenization_flaubert import FlaubertTokenizer
 from .tokenization_gpt2 import GPT2Tokenizer, GPT2TokenizerFast
+from .tokenization_longformer import LongformerTokenizer
 from .tokenization_openai import OpenAIGPTTokenizer, OpenAIGPTTokenizerFast
 from .tokenization_reformer import ReformerTokenizer
 from .tokenization_roberta import RobertaTokenizer, RobertaTokenizerFast
@@ -248,7 +254,7 @@ if is_torch_available():
         BART_PRETRAINED_MODEL_ARCHIVE_MAP,
     )
     from .modeling_marian import MarianMTModel
-    from .tokenization_marian import MarianSentencePieceTokenizer
+    from .tokenization_marian import MarianTokenizer
     from .modeling_roberta import (
         RobertaForMaskedLM,
         RobertaModel,
@@ -287,6 +293,7 @@ if is_torch_available():
     from .modeling_albert import (
         AlbertPreTrainedModel,
         AlbertModel,
+        AlbertForPreTraining,
         AlbertForMaskedLM,
         AlbertForSequenceClassification,
         AlbertForQuestionAnswering,
@@ -331,6 +338,8 @@ if is_torch_available():
         REFORMER_PRETRAINED_MODEL_ARCHIVE_MAP,
     )
 
+    from .modeling_longformer import LONGFORMER_PRETRAINED_MODEL_ARCHIVE_MAP, LongformerModel, LongformerForMaskedLM
+
     # Optimization
     from .optimization import (
         AdamW,
@@ -358,6 +367,7 @@ if is_tf_available():
     from .modeling_tf_auto import (
         TFAutoModel,
         TFAutoModelForPreTraining,
+        TFAutoModelForMultipleChoice,
         TFAutoModelForSequenceClassification,
         TFAutoModelForQuestionAnswering,
         TFAutoModelWithLMHead,
@@ -490,7 +500,9 @@ if is_tf_available():
         TFAlbertPreTrainedModel,
         TFAlbertMainLayer,
         TFAlbertModel,
+        TFAlbertForPreTraining,
         TFAlbertForMaskedLM,
+        TFAlbertForMultipleChoice,
         TFAlbertForSequenceClassification,
         TFAlbertForQuestionAnswering,
         TF_ALBERT_PRETRAINED_MODEL_ARCHIVE_MAP,
