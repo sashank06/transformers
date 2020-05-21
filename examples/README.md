@@ -1,6 +1,10 @@
-# Examples
+## Examples
 
+<<<<<<< HEAD
 Version 2.9 of `transformers` introduces a new `Trainer` class for PyTorch, and its equivalent `TFTrainer` for TF 2.
+=======
+Version 2.9 of `transformers` introduces a new [`Trainer`](https://github.com/huggingface/transformers/blob/master/src/transformers/trainer.py) class for PyTorch, and its equivalent [`TFTrainer`](https://github.com/huggingface/transformers/blob/master/src/transformers/trainer_tf.py) for TF 2.
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 
 Here is the list of all our examples:
 - **grouped by task** (all official examples work for multiple models)
@@ -12,6 +16,7 @@ Here is the list of all our examples:
 This is still a work-in-progress – in particular documentation is still sparse – so please **contribute improvements/pull requests.**
 
 
+<<<<<<< HEAD
 ## Tasks built on Trainer
 
 | Task | Example datasets | Trainer support | TFTrainer support | pytorch-lightning | Colab | One-click Deploy to Azure (wip) | 
@@ -54,3 +59,70 @@ pip install -r ./examples/requirements.txt
 ## Running on TPUs
 
 Documentation to come.
+=======
+# The Big Table of Tasks
+
+| Task | Example datasets | Trainer support | TFTrainer support | pytorch-lightning | Colab
+|---|---|:---:|:---:|:---:|:---:|
+| [**`language-modeling`**](./language-modeling)       | Raw text        | ✅ | -  | -  | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/blog/blob/master/notebooks/01_how_to_train.ipynb)
+| [**`text-classification`**](./text-classification)   | GLUE, XNLI      | ✅ | ✅ | ✅ | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/blog/blob/master/notebooks/trainer/01_text_classification.ipynb)
+| [**`token-classification`**](./token-classification) | CoNLL NER       | ✅ | ✅ | ✅ | -
+| [**`multiple-choice`**](./multiple-choice)           | SWAG, RACE, ARC | ✅ | ✅ | -  | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ViktorAlm/notebooks/blob/master/MPC_GPU_Demo_for_TF_and_PT.ipynb)
+| [**`question-answering`**](./question-answering)     | SQuAD           | -  | ✅ | -  | -
+| [**`text-generation`**](./text-generation)     | -           | -  | - | -  | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/blog/blob/master/notebooks/02_how_to_generate.ipynb)
+| [**`distillation`**](./distillation)       | All               | -  | -  | -  | -
+| [**`summarization`**](./summarization)     | CNN/Daily Mail    | -  | -  | -  | -
+| [**`translation`**](./translation)         | WMT               | -  | -  | -  | -
+| [**`bertology`**](./bertology)             | -                 | -  | -  | -  | -
+| [**`adversarial`**](./adversarial)         | HANS              | -  | -  | -  | -
+
+
+<br>
+
+## Important note
+
+**Important**
+To make sure you can successfully run the latest versions of the example scripts, you have to install the library from source and install some example-specific requirements.
+Execute the following steps in a new virtual environment:
+
+```bash
+git clone https://github.com/huggingface/transformers
+cd transformers
+pip install .
+pip install -r ./examples/requirements.txt
+```
+
+## One-click Deploy to Cloud (wip)
+
+#### Azure
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure%2Fazure-quickstart-templates%2Fmaster%2F101-storage-account-create%2Fazuredeploy.json)
+
+## Running on TPUs
+
+When using Tensorflow, TPUs are supported out of the box as a `tf.distribute.Strategy`.
+
+When using PyTorch, we support TPUs thanks to `pytorch/xla`. For more context and information on how to setup your TPU environment refer to Google's documentation and to the
+very detailed [pytorch/xla README](https://github.com/pytorch/xla/blob/master/README.md).
+
+In this repo, we provide a very simple launcher script named [xla_spawn.py](./xla_spawn.py) that lets you run our example scripts on multiple TPU cores without any boilerplate.
+Just pass a `--num_cores` flag to this script, then your regular training script with its arguments (this is similar to the `torch.distributed.launch` helper for torch.distributed).
+
+For example for `run_glue`:
+
+```bash
+python examples/xla_spawn.py --num_cores 8 \
+	examples/text-classification/run_glue.py
+	--model_name_or_path bert-base-cased \
+	--task_name mnli \
+	--data_dir ./data/glue_data/MNLI \
+	--output_dir ./models/tpu \
+	--overwrite_output_dir \
+	--do_train \
+	--do_eval \
+	--num_train_epochs 1 \
+	--save_steps 20000
+```
+
+Feedback and more use cases and benchmarks involving TPUs are welcome, please share with the community.
+>>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
