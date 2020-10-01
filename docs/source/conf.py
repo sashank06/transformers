@@ -27,10 +27,14 @@ author = u'huggingface'
 version = u''
 # The full version, including alpha/beta/rc tags
 <<<<<<< HEAD
+<<<<<<< HEAD
 release = u'2.9.0'
 =======
 release = u'2.9.1'
 >>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
+=======
+release = u'3.3.1'
+>>>>>>> de4d7b004a24e4bb087eb46d742ea7939bc74644
 
 
 # -- General configuration ---------------------------------------------------
@@ -48,7 +52,8 @@ extensions = [
     'sphinx.ext.napoleon',
     'recommonmark',
     'sphinx.ext.viewcode',
-    'sphinx_markdown_tables'
+    'sphinx_markdown_tables',
+    'sphinx_copybutton'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -78,6 +83,9 @@ exclude_patterns = [u'_build', 'Thumbs.db', '.DS_Store']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
 
+# Remove the prompt when copying examples
+copybutton_prompt_text = r">>> |\.\.\. "
+copybutton_prompt_is_regexp = True
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -191,8 +199,8 @@ epub_title = project
 epub_exclude_files = ['search.html']
 
 def setup(app):
-    app.add_stylesheet('css/huggingface.css')
-    app.add_stylesheet('css/code-snippets.css')
+    app.add_css_file('css/huggingface.css')
+    app.add_css_file('css/code-snippets.css')
     app.add_js_file('js/custom.js')
 
 # -- Extension configuration -------------------------------------------------
