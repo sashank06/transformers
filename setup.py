@@ -5,7 +5,7 @@ To create the package for pypi.
 
 1. Change the version in __init__.py, setup.py as well as docs/source/conf.py.
 
-2. Unpin specific versions from setup.py (like isort).
+2. Unpin specific versions from setup.py that use a git install.
 
 2. Commit these changes with the message: "Release: VERSION"
 
@@ -36,7 +36,7 @@ To create the package for pypi.
 
 7. Copy the release notes from RELEASE.md to the tag in github once everything is looking hunky-dory.
 
-8. Update the documentation commit in .circleci/deploy.sh for the accurate documentation to be displayed
+8. Add the release version to docs/source/_static/js/custom.js and .circleci/deploy.sh
 
 9. Update README.md to redirect to correct documentation.
 """
@@ -65,7 +65,7 @@ if stale_egg_info.exists():
 
 extras = {}
 
-extras["mecab"] = ["mecab-python3"]
+extras["ja"] = ["fugashi>=1.0", "ipadic>=1.0.0,<2.0", "unidic_lite>=1.0.7", "unidic>=1.0.2"]
 extras["sklearn"] = ["scikit-learn"]
 <<<<<<< HEAD
 extras["tf"] = ["tensorflow<=2.1.0"]
@@ -74,21 +74,31 @@ extras["tf-cpu"] = ["tensorflow-cpu<=2.1.0"]
 
 # keras2onnx and onnxconverter-common version is specific through a commit until 1.7.0 lands on pypi
 extras["tf"] = [
-    "tensorflow",
-    "onnxconverter-common @ git+git://github.com/microsoft/onnxconverter-common.git@f64ca15989b6dc95a1f3507ff6e4c395ba12dff5#egg=onnxconverter-common",
-    "keras2onnx @ git+git://github.com/onnx/keras-onnx.git@cbdc75cb950b16db7f0a67be96a278f8d2953b48#egg=keras2onnx"
+    "tensorflow>=2.0",
+    "onnxconverter-common",
+    "keras2onnx"
+    # "onnxconverter-common @ git+git://github.com/microsoft/onnxconverter-common.git@f64ca15989b6dc95a1f3507ff6e4c395ba12dff5#egg=onnxconverter-common",
+    # "keras2onnx @ git+git://github.com/onnx/keras-onnx.git@cbdc75cb950b16db7f0a67be96a278f8d2953b48#egg=keras2onnx",
 ]
 extras["tf-cpu"] = [
-    "tensorflow-cpu",
-    "onnxconverter-common @ git+git://github.com/microsoft/onnxconverter-common.git@f64ca15989b6dc95a1f3507ff6e4c395ba12dff5#egg=onnxconverter-common",
-    "keras2onnx @ git+git://github.com/onnx/keras-onnx.git@cbdc75cb950b16db7f0a67be96a278f8d2953b48#egg=keras2onnx"
+    "tensorflow-cpu>=2.0",
+    "onnxconverter-common",
+    "keras2onnx"
+    # "onnxconverter-common @ git+git://github.com/microsoft/onnxconverter-common.git@f64ca15989b6dc95a1f3507ff6e4c395ba12dff5#egg=onnxconverter-common",
+    # "keras2onnx @ git+git://github.com/onnx/keras-onnx.git@cbdc75cb950b16db7f0a67be96a278f8d2953b48#egg=keras2onnx",
 ]
+<<<<<<< HEAD
 >>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
 extras["torch"] = ["torch"]
+=======
+extras["torch"] = ["torch>=1.0"]
+extras["onnxruntime"] = ["onnxruntime>=1.4.0", "onnxruntime-tools>=1.4.2"]
+>>>>>>> de4d7b004a24e4bb087eb46d742ea7939bc74644
 
 extras["serving"] = ["pydantic", "uvicorn", "fastapi", "starlette"]
 extras["all"] = extras["serving"] + ["tensorflow", "torch"]
 
+<<<<<<< HEAD
 extras["testing"] = ["pytest", "pytest-xdist", "timeout-decorator"]
 extras["docs"] = ["recommonmark", "sphinx", "sphinx-markdown-tables", "sphinx-rtd-theme"]
 extras["quality"] = [
@@ -106,6 +116,19 @@ setup(
     version="2.9.1",
 >>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
     author="Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Sam Shleifer, Google AI Language Team Authors, Open AI team Authors, Facebook AI Authors, Carnegie Mellon University Authors",
+=======
+extras["retrieval"] = ["faiss-cpu", "datasets"]
+extras["testing"] = ["pytest", "pytest-xdist", "timeout-decorator", "parameterized", "psutil"] + extras["retrieval"]
+# sphinx-rtd-theme==0.5.0 introduced big changes in the style.
+extras["docs"] = ["recommonmark", "sphinx", "sphinx-markdown-tables", "sphinx-rtd-theme==0.4.3", "sphinx-copybutton"]
+extras["quality"] = ["black >= 20.8b1", "isort >= 5.5.4", "flake8 >= 3.8.3"]
+extras["dev"] = extras["testing"] + extras["quality"] + extras["ja"] + ["scikit-learn", "tensorflow", "torch"]
+
+setup(
+    name="transformers",
+    version="3.3.1",
+    author="Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Sam Shleifer, Patrick von Platen, Sylvain Gugger, Google AI Language Team Authors, Open AI team Authors, Facebook AI Authors, Carnegie Mellon University Authors",
+>>>>>>> de4d7b004a24e4bb087eb46d742ea7939bc74644
     author_email="thomas@huggingface.co",
     description="State-of-the-art Natural Language Processing for TensorFlow 2.0 and PyTorch",
     long_description=open("README.md", "r", encoding="utf-8").read(),
@@ -117,9 +140,11 @@ setup(
     packages=find_packages("src"),
     install_requires=[
         "numpy",
-        "tokenizers == 0.7.0",
+        "tokenizers == 0.8.1.rc2",
         # dataclasses for Python versions that don't have it
         "dataclasses;python_version<'3.7'",
+        # utilities from PyPA to e.g. compare versions
+        "packaging",
         # filesystem locks e.g. to prevent parallel downloads
         "filelock",
         # for downloading models over HTTPS
@@ -129,12 +154,14 @@ setup(
         # for OpenAI GPT
         "regex != 2019.12.17",
         # for XLNet
-        "sentencepiece",
+        "sentencepiece != 0.1.92",
         # for XLM
         "sacremoses",
     ],
     extras_require=extras,
-    scripts=["transformers-cli"],
+    entry_points={
+        "console_scripts": ["transformers-cli=transformers.commands.transformers_cli:main"]
+    },
     python_requires=">=3.6.0",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
