@@ -28,6 +28,7 @@ version = u''
 # The full version, including alpha/beta/rc tags
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 release = u'2.9.0'
 =======
 release = u'2.9.1'
@@ -35,6 +36,9 @@ release = u'2.9.1'
 =======
 release = u'3.3.1'
 >>>>>>> de4d7b004a24e4bb087eb46d742ea7939bc74644
+=======
+release = u'3.4.0'
+>>>>>>> 00602f784069564082992b214a6fe1c551fec29c
 
 
 # -- General configuration ---------------------------------------------------

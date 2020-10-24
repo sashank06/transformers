@@ -64,8 +64,13 @@ BART_PRETRAINED_MODEL_ARCHIVE_LIST = [
 
 BART_START_DOCSTRING = r"""
 
-    This model is a PyTorch `torch.nn.Module <https://pytorch.org/docs/stable/nn.html#torch.nn.Module>`_ sub-class. Use it as a regular PyTorch Module and
-    refer to the PyTorch documentation for all matters related to general usage and behavior.
+    This model inherits from :class:`~transformers.PreTrainedModel`. Check the superclass documentation for the generic
+    methods the library implements for all its model (such as downloading or saving, resizing the input embeddings,
+    pruning heads etc.)
+
+    This model is also a PyTorch `torch.nn.Module <https://pytorch.org/docs/stable/nn.html#torch.nn.Module>`__ subclass.
+    Use it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general
+    usage and behavior.
 
     Parameters:
         config (:class:`~transformers.BartConfig`): Model configuration class with all the parameters of the model.
@@ -73,6 +78,7 @@ BART_START_DOCSTRING = r"""
             Check out the :meth:`~transformers.PreTrainedModel.from_pretrained` method to load the model weights.
 
 """
+
 BART_GENERATION_EXAMPLE = r"""
     Summarization example::
 
@@ -94,39 +100,54 @@ BART_GENERATION_EXAMPLE = r"""
 BART_INPUTS_DOCSTRING = r"""
     Args:
         input_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`):
-               Indices of input sequence tokens in the vocabulary. Use BartTokenizer.encode to produce them.
-            Padding will be ignored by default should you provide it.
-            Indices can be obtained using :class:`transformers.BartTokenizer.encode(text)`.
+            Indices of input sequence tokens in the vocabulary. Padding will be ignored by default should you provide
+            it.
+
+            Indices can be obtained using :class:`~transformers.BartTokenizer`.
+            See :meth:`transformers.PreTrainedTokenizer.encode` and
+            :meth:`transformers.PreTrainedTokenizer.__call__` for details.
+
+            `What are input IDs? <../glossary.html#input-ids>`__
         attention_mask (:obj:`torch.Tensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
-            Mask to avoid performing attention on padding token indices in input_ids.
+            Mask to avoid performing attention on padding token indices.
             Mask values selected in ``[0, 1]``:
-            ``1`` for tokens that are NOT MASKED, ``0`` for MASKED tokens.
+
+            - 1 for tokens that are **not masked**,
+            - 0 for tokens that are **masked**.
+
+            `What are attention masks? <../glossary.html#attention-mask>`__
         decoder_input_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, target_sequence_length)`, `optional`):
-            Provide for translation and summarization training. By default, the model will create this tensor by shifting the input_ids right, following the paper.
+            Provide for translation and summarization training. By default, the model will create this tensor by
+            shifting the :obj:`input_ids` to the right, following the paper.
         decoder_attention_mask (:obj:`torch.BoolTensor` of shape :obj:`(batch_size, tgt_seq_len)`, `optional`):
-            Default behavior: generate a tensor that ignores pad tokens in decoder_input_ids. Causal mask will also be used by default.
-            If you want to change padding behavior, you should read :func:`~transformers.modeling_bart._prepare_decoder_inputs` and modify.
-            See diagram 1 in the paper for more info on the default strategy
+            Default behavior: generate a tensor that ignores pad tokens in :obj:`decoder_input_ids`. Causal mask will
+            also be used by default.
+
+            If you want to change padding behavior, you should read :func:`modeling_bart._prepare_decoder_inputs` and
+            modify to your needs. See diagram 1 in `the paper <https://arxiv.org/abs/1910.13461>`__ for more
+            information on the default strategy.
         encoder_outputs (:obj:`tuple(tuple(torch.FloatTensor)`, `optional`):
             Tuple consists of (:obj:`last_hidden_state`, `optional`: :obj:`hidden_states`, `optional`: :obj:`attentions`)
-            :obj:`last_hidden_state` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`) is a sequence of hidden-states at the output of the last layer of the encoder.
-            Used in the cross-attention of the decoder.
-        past_key_values (:obj:`tuple(tuple(torch.FloatTensor))` of length :obj:`config.n_layers` with each tuple having 4 tensors of shape :obj:`(batch_size, num_heads, sequence_length - 1, embed_size_per_head)`):
-            Contains pre-computed key and value hidden-states of the attention blocks.
-            Can be used to speed up decoding.
+            :obj:`last_hidden_state` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`) is a
+            sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention of
+            the decoder.
+        past_key_values (:obj:`Tuple[Dict[str: tf.Tensor]]` of length :obj:`config.n_layers` with each tuple having 4 tensors of shape :obj:`(batch_size, num_heads, sequence_length - 1, embed_size_per_head)`):
+            Contains precomputed key and value hidden-states of the attention blocks. Can be used to speed up decoding.
+
             If :obj:`past_key_values` are used, the user can optionally input only the last
             ``decoder_input_ids`` (those that don't have their past key value states given to this model) of shape
             :obj:`(batch_size, 1)` instead of all ``decoder_input_ids`` of shape :obj:`(batch_size, sequence_length)`.
-        use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`):
-            If :obj:`use_cache` is True, :obj:`past_key_values` are returned and can be used to speed up decoding (see
-            :obj:`past_key_values`).
+        use_cache (:obj:`bool`, `optional`):
+            If set to :obj:`True`, :obj:`past_key_values` key value states are returned and can be used to speed up
+            decoding (see :obj:`past_key_values`).
         output_attentions (:obj:`bool`, `optional`):
-            If set to ``True``, the attentions tensors of all attention layers are returned. See ``attentions`` under returned tensors for more detail.
+            Whether or not to return the attentions tensors of all attention layers. See ``attentions`` under returned
+            tensors for more detail.
         output_hidden_states (:obj:`bool`, `optional`):
-            If set to ``True``, the hidden states of all layers are returned. See ``hidden_states`` under returned tensors for more detail.
+            Whether or not to return the hidden states of all layers. See ``hidden_states`` under returned tensors for
+            more detail.
         return_dict (:obj:`bool`, `optional`):
-            If set to ``True``, the model will return a :class:`~transformers.file_utils.ModelOutput` instead of a
-            plain tuple.
+            Whether or not to return a :class:`~transformers.file_utils.ModelOutput` instead of a plain tuple.
 """
 
 
@@ -194,12 +215,6 @@ def _make_linear_from_emb(emb):
     lin_layer = nn.Linear(vocab_size, emb_size, bias=False)
     lin_layer.weight.data = emb.weight.data
     return lin_layer
-
-
-# Helper Functions, mostly for making masks
-def _check_shapes(shape_1, shape2):
-    if shape_1 != shape2:
-        raise AssertionError("shape mismatch: {} != {}".format(shape_1, shape2))
 
 
 def shift_tokens_right(input_ids, pad_token_id):
@@ -478,6 +493,7 @@ class BartDecoder(nn.Module):
         super().__init__()
         self.dropout = config.dropout
         self.layerdrop = config.decoder_layerdrop
+        self.do_blenderbot_90_layernorm = config.do_blenderbot_90_layernorm  # layernorm variant
         self.padding_idx = embed_tokens.padding_idx
         self.max_target_positions = config.max_position_embeddings
         self.embed_scale = math.sqrt(config.d_model) if config.scale_embedding else 1.0
@@ -557,8 +573,13 @@ class BartDecoder(nn.Module):
             positions = positions[:, -1:]
 
         x = self.embed_tokens(input_ids) * self.embed_scale
-        x += positions
-        x = self.layernorm_embedding(x)
+        if self.do_blenderbot_90_layernorm:
+            x = self.layernorm_embedding(x)
+            x += positions
+        else:
+            x += positions
+            x = self.layernorm_embedding(x)
+
         x = F.dropout(x, p=self.dropout, training=self.training)
 
         # Convert to Bart output format: (seq_len, BS, model_dim) -> (BS, seq_len, model_dim)
@@ -568,7 +589,7 @@ class BartDecoder(nn.Module):
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
-        next_decoder_cache = []
+        next_decoder_cache: List[Dict] = []
         for idx, decoder_layer in enumerate(self.layers):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             if output_hidden_states:
@@ -613,7 +634,7 @@ class BartDecoder(nn.Module):
         )
 
 
-def _reorder_buffer(attn_cache, new_order):
+def _reorder_buffer(attn_cache: Dict, new_order) -> Dict:
     for k, input_buffer_k in attn_cache.items():
         if input_buffer_k is not None:
             attn_cache[k] = input_buffer_k.index_select(0, new_order)
@@ -652,17 +673,15 @@ class Attention(nn.Module):
     def forward(
         self,
         query,
-        key: Optional[Tensor],
+        key: Tensor,
         key_padding_mask: Optional[Tensor] = None,
-        layer_state: Optional[Dict[str, Optional[Tensor]]] = None,
+        layer_state: Optional[Dict[str, Tensor]] = None,
         attn_mask: Optional[Tensor] = None,
         output_attentions=False,
     ) -> Tuple[Tensor, Optional[Tensor]]:
         """Input shape: Time(SeqLen) x Batch x Channel"""
         static_kv: bool = self.encoder_decoder_attention
         tgt_len, bsz, embed_dim = query.size()
-        assert embed_dim == self.embed_dim
-        assert list(query.size()) == [tgt_len, bsz, embed_dim]
         # get here for encoder decoder cause of static_kv
         if layer_state is not None:  # reuse k,v and encoder_padding_mask
             saved_state = layer_state.get(self.cache_key, {})
@@ -670,17 +689,16 @@ class Attention(nn.Module):
                 # previous time steps are cached - no need to recompute key and value if they are static
                 key = None
         else:
+            # this branch is hit by encoder
             saved_state = None
-            layer_state = {}
 
         q = self.q_proj(query) * self.scaling
-        if static_kv:
-            if key is None:
-                k = v = None
-            else:
-                k = self.k_proj(key)
-                v = self.v_proj(key)
-        else:
+        if static_kv and key is None:  # cross-attention with cache
+            k = v = None
+        elif static_kv and key is not None:  # cross-attention no prev_key found in cache
+            k = self.k_proj(key)
+            v = self.v_proj(key)
+        else:  # self-attention
             k = self.k_proj(query)
             v = self.v_proj(query)
 
@@ -690,18 +708,16 @@ class Attention(nn.Module):
         if v is not None:
             v = self._shape(v, -1, bsz)
 
-        if saved_state is not None:
-            k, v, key_padding_mask = self._use_saved_state(k, v, saved_state, key_padding_mask, static_kv, bsz)
+        if saved_state:
+            k, v = self._concat_saved_state(k, v, saved_state, static_kv, bsz)
 
         # Update cache
-        layer_state[self.cache_key] = {
-            "prev_key": k.view(bsz, self.num_heads, -1, self.head_dim),
-            "prev_value": v.view(bsz, self.num_heads, -1, self.head_dim),
-            "prev_key_padding_mask": key_padding_mask if not static_kv else None,
-        }
+        if isinstance(layer_state, dict):
+            cached_shape = (bsz, self.num_heads, -1, self.head_dim)  # bsz must be first for reorder_cache
+            layer_state[self.cache_key] = dict(prev_key=k.view(*cached_shape), prev_value=v.view(*cached_shape))
 
-        assert k is not None
         src_len = k.size(1)
+        assert key_padding_mask is None or key_padding_mask.shape == (bsz, src_len)
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         assert attn_weights.size() == (bsz * self.num_heads, tgt_len, src_len)
 
@@ -709,13 +725,7 @@ class Attention(nn.Module):
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attn_mask
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
-        # This is part of a workaround to get around fork/join parallelism not supporting Optional types.
-        if key_padding_mask is not None and key_padding_mask.dim() == 0:
-            key_padding_mask = None
-        assert key_padding_mask is None or key_padding_mask.size()[:2] == (
-            bsz,
-            src_len,
-        )
+        # Note: deleted workaround to get around fork/join parallelism not supporting Optional types. on 2020/10/15
 
         if key_padding_mask is not None:  # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
@@ -723,11 +733,7 @@ class Attention(nn.Module):
             attn_weights = attn_weights.masked_fill(reshaped, float("-inf"))
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
         attn_weights = F.softmax(attn_weights, dim=-1)
-        attn_probs = F.dropout(
-            attn_weights,
-            p=self.dropout,
-            training=self.training,
-        )
+        attn_probs = F.dropout(attn_weights, p=self.dropout, training=self.training)
 
         assert v is not None
         attn_output = torch.bmm(attn_probs, v)
@@ -740,36 +746,13 @@ class Attention(nn.Module):
             attn_weights = None
         return attn_output, attn_weights
 
-    def _use_saved_state(self, k, v, saved_state, key_padding_mask, static_kv, bsz):
+    def _concat_saved_state(self, k, v, saved_state, static_kv, bsz) -> Tuple[Tensor]:
         # saved states are stored with shape (bsz, num_heads, seq_len, head_dim)
-        if "prev_key" in saved_state:
-            _prev_key = saved_state["prev_key"]
-            assert _prev_key is not None
-            prev_key = _prev_key.view(bsz * self.num_heads, -1, self.head_dim)
-            if static_kv:
-                k = prev_key
-            else:
-                assert k is not None
-                k = torch.cat([prev_key, k], dim=1)
-        if "prev_value" in saved_state:
-            _prev_value = saved_state["prev_value"]
-            assert _prev_value is not None
-            prev_value = _prev_value.view(bsz * self.num_heads, -1, self.head_dim)
-            if static_kv:
-                v = prev_value
-            else:
-                assert v is not None
-                v = torch.cat([prev_value, v], dim=1)
-        assert k is not None and v is not None
-        prev_key_padding_mask: Optional[Tensor] = saved_state.get("prev_key_padding_mask", None)
-        if prev_key_padding_mask is not None:
-            if static_kv:
-                new_key_padding_mask = prev_key_padding_mask
-            else:
-                new_key_padding_mask = torch.cat([prev_key_padding_mask, key_padding_mask], dim=1)
-        else:
-            new_key_padding_mask = key_padding_mask
-        return k, v, new_key_padding_mask
+        prev_K = saved_state["prev_key"].view(bsz * self.num_heads, -1, self.head_dim)
+        prev_V = saved_state["prev_value"].view(bsz * self.num_heads, -1, self.head_dim)
+        new_K = prev_K if static_kv else torch.cat([prev_K, k], dim=1)
+        new_V = prev_V if static_kv else torch.cat([prev_V, v], dim=1)
+        return new_K, new_V
 
 
 class BartClassificationHead(nn.Module):
@@ -1016,31 +999,31 @@ class BartForConditionalGeneration(PretrainedBartModel):
         **unused,
     ):
         r"""
-            labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
-                Labels for computing the masked language modeling loss.
-                Indices should either be in ``[0, ..., config.vocab_size]`` or -100 (see ``input_ids`` docstring).
-                Tokens with indices set to ``-100`` are ignored (masked), the loss is only computed for the tokens
-                with labels in ``[0, ..., config.vocab_size]``.
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
+            Labels for computing the masked language modeling loss.
+            Indices should either be in ``[0, ..., config.vocab_size]`` or -100 (see ``input_ids`` docstring).
+            Tokens with indices set to ``-100`` are ignored (masked), the loss is only computed for the tokens
+            with labels in ``[0, ..., config.vocab_size]``.
 
         Returns:
 
         Conditional generation example::
 
-                >>> # Mask filling only works for bart-large
-                >>> from transformers import BartTokenizer, BartForConditionalGeneration
-                >>> tokenizer = BartTokenizer.from_pretrained('facebook/bart-large')
-                >>> TXT = "My friends are <mask> but they eat too many carbs."
+            >>> # Mask filling only works for bart-large
+            >>> from transformers import BartTokenizer, BartForConditionalGeneration
+            >>> tokenizer = BartTokenizer.from_pretrained('facebook/bart-large')
+            >>> TXT = "My friends are <mask> but they eat too many carbs."
 
-                >>> model = BartForConditionalGeneration.from_pretrained('facebook/bart-large')
-                >>> input_ids = tokenizer([TXT], return_tensors='pt')['input_ids']
-                >>> logits = model(input_ids).logits
+            >>> model = BartForConditionalGeneration.from_pretrained('facebook/bart-large')
+            >>> input_ids = tokenizer([TXT], return_tensors='pt')['input_ids']
+            >>> logits = model(input_ids).logits
 
-                >>> masked_index = (input_ids[0] == tokenizer.mask_token_id).nonzero().item()
-                >>> probs = logits[0, masked_index].softmax(dim=0)
-                >>> values, predictions = probs.topk(5)
+            >>> masked_index = (input_ids[0] == tokenizer.mask_token_id).nonzero().item()
+            >>> probs = logits[0, masked_index].softmax(dim=0)
+            >>> values, predictions = probs.topk(5)
 
-                >>> tokenizer.decode(predictions).split()
-                >>> # ['good', 'great', 'all', 'really', 'very']
+            >>> tokenizer.decode(predictions).split()
+            >>> # ['good', 'great', 'all', 'really', 'very']
         """
         if "lm_labels" in unused:
             warnings.warn(
@@ -1116,14 +1099,15 @@ class BartForConditionalGeneration(PretrainedBartModel):
 
     def adjust_logits_during_generation(self, logits, cur_len, max_length):
         if cur_len == 1 and self.config.force_bos_token_to_be_generated:
-            self._force_token_ids_generation(logits, self.config.bos_token_id)
+            self._force_token_id_to_be_generated(logits, self.config.bos_token_id)
         elif cur_len == max_length - 1 and self.config.eos_token_id is not None:
-            self._force_token_ids_generation(logits, self.config.eos_token_id)
+            self._force_token_id_to_be_generated(logits, self.config.eos_token_id)
         return logits
 
-    def _force_token_ids_generation(self, scores, token_id) -> None:
+    @staticmethod
+    def _force_token_id_to_be_generated(scores, token_id) -> None:
         """force one of token_ids to be generated by setting prob of all other tokens to 0 (logprob=-float("inf"))"""
-        scores[:, [x for x in range(self.config.vocab_size) if x != token_id]] = -float("inf")
+        scores[:, [x for x in range(scores.shape[1]) if x != token_id]] = -float("inf")
 
     @staticmethod
     def _reorder_cache(past, beam_idx):
@@ -1155,7 +1139,7 @@ class BartForSequenceClassification(PretrainedBartModel):
             config.d_model,
             config.d_model,
             config.num_labels,
-            config.classif_dropout,
+            config.classifier_dropout,
         )
         self.model._init_weights(self.classification_head.dense)
         self.model._init_weights(self.classification_head.out_proj)
