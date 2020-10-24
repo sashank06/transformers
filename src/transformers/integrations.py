@@ -3,11 +3,16 @@ import math
 import os
 
 
+# Import 3rd-party integrations first:
+
 try:
+    # Comet needs to be imported before any ML frameworks
     import comet_ml  # noqa: F401
 
+    # XXX: there should be comet_ml.ensure_configured(), like `wandb`, for now emulate it
+    comet_ml.Experiment(project_name="ensure_configured")
     _has_comet = True
-except (ImportError):
+except (ImportError, ValueError):
     _has_comet = False
 
 try:
@@ -36,15 +41,6 @@ try:
 except (ImportError):
     _has_ray = False
 
-
-# No ML framework or transformer imports above this point
-
-from .trainer_utils import PREFIX_CHECKPOINT_DIR, BestRun  # isort:skip
-from .utils import logging  # isort:skip
-
-logger = logging.get_logger(__name__)
-
-
 try:
     from torch.utils.tensorboard import SummaryWriter  # noqa: F401
 
@@ -57,9 +53,18 @@ except ImportError:
     except ImportError:
         _has_tensorboard = False
 
+# No transformer imports above this point
+
+from .file_utils import is_torch_tpu_available
+from .trainer_callback import TrainerCallback
+from .trainer_utils import PREFIX_CHECKPOINT_DIR, BestRun
+from .utils import logging
+
+
+logger = logging.get_logger(__name__)
+
+
 # Integration functions:
-
-
 def is_wandb_available():
     return _has_wandb
 
@@ -78,6 +83,17 @@ def is_optuna_available():
 
 def is_ray_available():
     return _has_ray
+
+
+def hp_params(trial):
+    if is_optuna_available():
+        if isinstance(trial, optuna.Trial):
+            return trial.params
+    if is_ray_available():
+        if isinstance(trial, dict):
+            return trial
+
+    raise RuntimeError(f"Unknown type for trial {trial.__class__}")
 
 
 def default_hp_search_backend():
@@ -128,8 +144,8 @@ def run_hp_search_ray(trainer, n_trials: int, direction: str, **kwargs) -> BestR
 
     # The model and TensorBoard writer do not pickle so we have to remove them (if they exists)
     # while doing the ray hp search.
-    _tb_writer = trainer.tb_writer
-    trainer.tb_writer = None
+
+    _tb_writer = trainer.pop_callback(TensorBoardCallback)
     trainer.model = None
     # Setup default `resources_per_trial` and `reporter`.
     if "resources_per_trial" not in kwargs and trainer.args.n_gpu > 0:
@@ -182,5 +198,213 @@ def run_hp_search_ray(trainer, n_trials: int, direction: str, **kwargs) -> BestR
     analysis = ray.tune.run(_objective, config=trainer.hp_space(None), num_samples=n_trials, **kwargs)
     best_trial = analysis.get_best_trial(metric="objective", mode=direction[:3])
     best_run = BestRun(best_trial.trial_id, best_trial.last_result["objective"], best_trial.config)
-    trainer.tb_writer = _tb_writer
+    if _tb_writer is not None:
+        trainer.add_callback(_tb_writer)
     return best_run
+
+
+def rewrite_logs(d):
+    new_d = {}
+    eval_prefix = "eval_"
+    eval_prefix_len = len(eval_prefix)
+    for k, v in d.items():
+        if k.startswith(eval_prefix):
+            new_d["eval/" + k[eval_prefix_len:]] = v
+        else:
+            new_d["train/" + k] = v
+    return new_d
+
+
+class TensorBoardCallback(TrainerCallback):
+    """
+    A :class:`~transformers.TrainerCallback` that sends the logs to `TensorBoard
+    <https://www.tensorflow.org/tensorboard>`__.
+
+    Args:
+        tb_writer (:obj:`SummaryWriter`, `optional`):
+            The writer to use. Will instantiate one if not set.
+    """
+
+    def __init__(self, tb_writer=None):
+        assert (
+            _has_tensorboard
+        ), "TensorBoardCallback requires tensorboard to be installed. Either update your PyTorch version or install tensorboardX."
+        self.tb_writer = tb_writer
+
+    def _init_summary_writer(self, args, log_dir=None):
+        log_dir = log_dir or args.logging_dir
+        self.tb_writer = SummaryWriter(log_dir=log_dir)
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        if not state.is_world_process_zero:
+            return
+
+        log_dir = None
+
+        if state.is_hyper_param_search:
+            trial_name = state.trial_name
+            if trial_name is not None:
+                log_dir = os.path.join(args.logging_dir, trial_name)
+
+        self._init_summary_writer(args, log_dir)
+
+        if self.tb_writer is not None:
+            self.tb_writer.add_text("args", args.to_json_string())
+            if "model" in kwargs:
+                model = kwargs["model"]
+                if hasattr(model, "config") and model.config is not None:
+                    model_config_json = model.config.to_json_string()
+                    self.tb_writer.add_text("model_config", model_config_json)
+            self.tb_writer.add_hparams(args.to_sanitized_dict(), metric_dict={})
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if state.is_world_process_zero:
+            if self.tb_writer is None:
+                self._init_summary_writer(args)
+
+        if self.tb_writer:
+            logs = rewrite_logs(logs)
+            for k, v in logs.items():
+                if isinstance(v, (int, float)):
+                    self.tb_writer.add_scalar(k, v, state.global_step)
+                else:
+                    logger.warning(
+                        "Trainer is attempting to log a value of "
+                        '"%s" of type %s for key "%s" as a scalar. '
+                        "This invocation of Tensorboard's writer.add_scalar() "
+                        "is incorrect so we dropped this attribute.",
+                        v,
+                        type(v),
+                        k,
+                    )
+            self.tb_writer.flush()
+
+    def on_train_end(self, args, state, control, **kwargs):
+        if self.tb_writer:
+            self.tb_writer.close()
+
+
+class WandbCallback(TrainerCallback):
+    """
+    A :class:`~transformers.TrainerCallback` that sends the logs to `Weight and Biases
+    <https://www.wandb.com/>`__.
+    """
+
+    def __init__(self):
+        assert _has_wandb, "WandbCallback requires wandb to be installed. Run `pip install wandb`."
+        self._initialized = False
+
+    def setup(self, args, state, model, reinit, **kwargs):
+        """
+        Setup the optional Weights & Biases (`wandb`) integration.
+
+        One can subclass and override this method to customize the setup if needed. Find more information
+        `here <https://docs.wandb.com/huggingface>`__. You can also override the following environment variables:
+
+        Environment:
+            WANDB_WATCH (:obj:`str`, `optional` defaults to :obj:`"gradients"`):
+                Can be :obj:`"gradients"`, :obj:`"all"` or :obj:`"false"`. Set to :obj:`"false"` to disable gradient
+                logging or :obj:`"all"` to log gradients and parameters.
+            WANDB_PROJECT (:obj:`str`, `optional`, defaults to :obj:`"huggingface"`):
+                Set this to a custom string to store results in a different project.
+            WANDB_DISABLED (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to disable wandb entirely.
+        """
+        self._initialized = True
+        if state.is_world_process_zero:
+            logger.info(
+                'Automatic Weights & Biases logging enabled, to disable set os.environ["WANDB_DISABLED"] = "true"'
+            )
+            combined_dict = {**args.to_sanitized_dict()}
+
+            if hasattr(model, "config") and model.config is not None:
+                model_config = model.config.to_dict()
+                combined_dict = {**model_config, **combined_dict}
+            trial_name = state.trial_name
+            init_args = {}
+            if trial_name is not None:
+                run_name = trial_name
+                init_args["group"] = args.run_name
+            else:
+                run_name = args.run_name
+
+            wandb.init(
+                project=os.getenv("WANDB_PROJECT", "huggingface"),
+                config=combined_dict,
+                name=run_name,
+                reinit=reinit,
+                **init_args,
+            )
+
+            # keep track of model topology and gradients, unsupported on TPU
+            if not is_torch_tpu_available() and os.getenv("WANDB_WATCH") != "false":
+                wandb.watch(model, log=os.getenv("WANDB_WATCH", "gradients"), log_freq=max(100, args.logging_steps))
+
+    def on_train_begin(self, args, state, control, model=None, **kwargs):
+        hp_search = state.is_hyper_param_search
+        if not self._initialized or hp_search:
+            print(args.run_name)
+            self.setup(args, state, model, reinit=hp_search, **kwargs)
+
+    def on_log(self, args, state, control, model=None, logs=None, **kwargs):
+        if not self._initialized:
+            self.setup(args, state, model, reinit=False)
+        if state.is_world_process_zero:
+            logs = rewrite_logs(logs)
+            wandb.log(logs, step=state.global_step)
+
+
+class CometCallback(TrainerCallback):
+    """
+    A :class:`~transformers.TrainerCallback` that sends the logs to `Comet ML
+    <https://www.comet.ml/site/>`__.
+    """
+
+    def __init__(self):
+        assert _has_comet, "CometCallback requires comet-ml to be installed. Run `pip install comet-ml`."
+        self._initialized = False
+
+    def setup(self, args, state, model):
+        """
+        Setup the optional Comet.ml integration.
+
+        Environment:
+            COMET_MODE (:obj:`str`, `optional`):
+                "OFFLINE", "ONLINE", or "DISABLED"
+            COMET_PROJECT_NAME (:obj:`str`, `optional`):
+                Comet.ml project name for experiments
+            COMET_OFFLINE_DIRECTORY (:obj:`str`, `optional`):
+                Folder to use for saving offline experiments when :obj:`COMET_MODE` is "OFFLINE"
+
+        For a number of configurable items in the environment,
+        see `here <https://www.comet.ml/docs/python-sdk/advanced/#comet-configuration-variables>`__.
+        """
+        self._initialized = True
+        if state.is_world_process_zero:
+            comet_mode = os.getenv("COMET_MODE", "ONLINE").upper()
+            args = {"project_name": os.getenv("COMET_PROJECT_NAME", "huggingface")}
+            experiment = None
+            if comet_mode == "ONLINE":
+                experiment = comet_ml.Experiment(**args)
+                logger.info("Automatic Comet.ml online logging enabled")
+            elif comet_mode == "OFFLINE":
+                args["offline_directory"] = os.getenv("COMET_OFFLINE_DIRECTORY", "./")
+                experiment = comet_ml.OfflineExperiment(**args)
+                logger.info("Automatic Comet.ml offline logging enabled; use `comet upload` when finished")
+            if experiment is not None:
+                experiment._set_model_graph(model, framework="transformers")
+                experiment._log_parameters(args, prefix="args/", framework="transformers")
+                if hasattr(model, "config"):
+                    experiment._log_parameters(model.config, prefix="config/", framework="transformers")
+
+    def on_train_begin(self, args, state, control, model=None, **kwargs):
+        if not self._initialized:
+            self.setup(args, state, model)
+
+    def on_log(self, args, state, control, model=None, logs=None, **kwargs):
+        if not self._initialized:
+            self.setup(args, state, model)
+        if state.is_world_process_zero:
+            experiment = comet_ml.config.get_global_experiment()
+            if experiment is not None:
+                experiment._log_metrics(logs, step=state.global_step, epoch=state.epoch, framework="transformers")

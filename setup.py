@@ -3,7 +3,10 @@ Simple check list from AllenNLP repo: https://github.com/allenai/allennlp/blob/m
 
 To create the package for pypi.
 
-1. Change the version in __init__.py, setup.py as well as docs/source/conf.py.
+1. Change the version in __init__.py, setup.py as well as docs/source/conf.py. Remove the master from the links in
+   the new models of the README:
+   (https://huggingface.co/transformers/master/model_doc/ -> https://huggingface.co/transformers/model_doc/)
+   then run `make fix-copies` to fix the index of the documentation.
 
 2. Unpin specific versions from setup.py that use a git install.
 
@@ -92,12 +95,14 @@ extras["tf-cpu"] = [
 extras["torch"] = ["torch"]
 =======
 extras["torch"] = ["torch>=1.0"]
+extras["flax"] = ["jaxlib==0.1.55", "jax>=0.2.0", "flax==0.2.2"]
 extras["onnxruntime"] = ["onnxruntime>=1.4.0", "onnxruntime-tools>=1.4.2"]
 >>>>>>> de4d7b004a24e4bb087eb46d742ea7939bc74644
 
 extras["serving"] = ["pydantic", "uvicorn", "fastapi", "starlette"]
 extras["all"] = extras["serving"] + ["tensorflow", "torch"]
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 extras["testing"] = ["pytest", "pytest-xdist", "timeout-decorator"]
 extras["docs"] = ["recommonmark", "sphinx", "sphinx-markdown-tables", "sphinx-rtd-theme"]
@@ -117,16 +122,19 @@ setup(
 >>>>>>> 865d4d595eefc8cc9cee58fec9179bd182be0e2e
     author="Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Sam Shleifer, Google AI Language Team Authors, Open AI team Authors, Facebook AI Authors, Carnegie Mellon University Authors",
 =======
+=======
+extras["sentencepiece"] = ["sentencepiece!=0.1.92"]
+>>>>>>> 00602f784069564082992b214a6fe1c551fec29c
 extras["retrieval"] = ["faiss-cpu", "datasets"]
 extras["testing"] = ["pytest", "pytest-xdist", "timeout-decorator", "parameterized", "psutil"] + extras["retrieval"]
 # sphinx-rtd-theme==0.5.0 introduced big changes in the style.
 extras["docs"] = ["recommonmark", "sphinx", "sphinx-markdown-tables", "sphinx-rtd-theme==0.4.3", "sphinx-copybutton"]
 extras["quality"] = ["black >= 20.8b1", "isort >= 5.5.4", "flake8 >= 3.8.3"]
-extras["dev"] = extras["testing"] + extras["quality"] + extras["ja"] + ["scikit-learn", "tensorflow", "torch"]
+extras["dev"] = extras["testing"] + extras["quality"] + extras["ja"] + ["scikit-learn", "tensorflow", "torch", "sentencepiece!=0.1.92"]
 
 setup(
     name="transformers",
-    version="3.3.1",
+    version="3.4.0",
     author="Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Sam Shleifer, Patrick von Platen, Sylvain Gugger, Google AI Language Team Authors, Open AI team Authors, Facebook AI Authors, Carnegie Mellon University Authors",
 >>>>>>> de4d7b004a24e4bb087eb46d742ea7939bc74644
     author_email="thomas@huggingface.co",
@@ -140,7 +148,7 @@ setup(
     packages=find_packages("src"),
     install_requires=[
         "numpy",
-        "tokenizers == 0.8.1.rc2",
+        "tokenizers == 0.9.2",
         # dataclasses for Python versions that don't have it
         "dataclasses;python_version<'3.7'",
         # utilities from PyPA to e.g. compare versions
@@ -153,15 +161,14 @@ setup(
         "tqdm >= 4.27",
         # for OpenAI GPT
         "regex != 2019.12.17",
-        # for XLNet
+        # for SentencePiece models
         "sentencepiece != 0.1.92",
+        "protobuf",
         # for XLM
         "sacremoses",
     ],
     extras_require=extras,
-    entry_points={
-        "console_scripts": ["transformers-cli=transformers.commands.transformers_cli:main"]
-    },
+    entry_points={"console_scripts": ["transformers-cli=transformers.commands.transformers_cli:main"]},
     python_requires=">=3.6.0",
     classifiers=[
         "Development Status :: 5 - Production/Stable",

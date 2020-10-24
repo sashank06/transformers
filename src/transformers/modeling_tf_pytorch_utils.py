@@ -177,6 +177,13 @@ def load_pytorch_weights_in_tf2_model(tf_model, pt_state_dict, tf_inputs=None, a
         elif len(symbolic_weight.shape) > len(array.shape):
             array = numpy.expand_dims(array, axis=0)
 
+        if list(symbolic_weight.shape) != list(array.shape):
+            try:
+                array = numpy.reshape(array, symbolic_weight.shape)
+            except AssertionError as e:
+                e.args += (symbolic_weight.shape, array.shape)
+                raise e
+
         try:
             assert list(symbolic_weight.shape) == list(array.shape)
         except AssertionError as e:
@@ -222,7 +229,7 @@ def load_pytorch_weights_in_tf2_model(tf_model, pt_state_dict, tf_inputs=None, a
     else:
         logger.warning(
             f"All the weights of {tf_model.__class__.__name__} were initialized from the PyTorch model.\n"
-            f"If your task is similar to the task the model of the ckeckpoint was trained on, "
+            f"If your task is similar to the task the model of the checkpoint was trained on, "
             f"you can already use {tf_model.__class__.__name__} for predictions without further training."
         )
 
@@ -251,6 +258,8 @@ def load_tf2_checkpoint_in_pytorch_model(pt_model, tf_checkpoint_path, tf_inputs
 
     import transformers
 
+    from .modeling_tf_utils import load_tf_weights
+
     logger.info("Loading TensorFlow weights from {}".format(tf_checkpoint_path))
 
     # Instantiate and load the associated TF 2.0 model
@@ -264,7 +273,7 @@ def load_tf2_checkpoint_in_pytorch_model(pt_model, tf_checkpoint_path, tf_inputs
     if tf_inputs is not None:
         tf_model(tf_inputs, training=False)  # Make sure model is built
 
-    tf_model.load_weights(tf_checkpoint_path, by_name=True)
+    load_tf_weights(tf_model, tf_checkpoint_path)
 
     return load_tf2_model_in_pytorch_model(pt_model, tf_model, allow_missing_keys=allow_missing_keys)
 
@@ -332,6 +341,13 @@ def load_tf2_weights_in_pytorch_model(pt_model, tf_weights, allow_missing_keys=F
         elif len(pt_weight.shape) > len(array.shape):
             array = numpy.expand_dims(array, axis=0)
 
+        if list(pt_weight.shape) != list(array.shape):
+            try:
+                array = numpy.reshape(array, pt_weight.shape)
+            except AssertionError as e:
+                e.args += (pt_weight.shape, array.shape)
+                raise e
+
         try:
             assert list(pt_weight.shape) == list(array.shape)
         except AssertionError as e:
@@ -367,7 +383,7 @@ def load_tf2_weights_in_pytorch_model(pt_model, tf_weights, allow_missing_keys=F
     else:
         logger.warning(
             f"All the weights of {pt_model.__class__.__name__} were initialized from the TF 2.0 model.\n"
-            f"If your task is similar to the task the model of the ckeckpoint was trained on, "
+            f"If your task is similar to the task the model of the checkpoint was trained on, "
             f"you can already use {pt_model.__class__.__name__} for predictions without further training."
         )
 
