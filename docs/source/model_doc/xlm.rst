@@ -1,3 +1,15 @@
+.. 
+    Copyright 2020 The HuggingFace Team. All rights reserved.
+
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+    the License. You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+    an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+    specific language governing permissions and limitations under the License.
+
 XLM
 -----------------------------------------------------------------------------------------------------------------------
 
@@ -14,23 +26,24 @@ Guillaume Lample, Alexis Conneau. It's a transformer pretrained using one of the
 The abstract from the paper is the following:
 
 *Recent studies have demonstrated the efficiency of generative pretraining for English natural language understanding.
-In this work, we extend this approach to multiple languages and show the effectiveness of cross-lingual pretraining.
-We propose two methods to learn cross-lingual language models (XLMs): one unsupervised that only relies on monolingual
+In this work, we extend this approach to multiple languages and show the effectiveness of cross-lingual pretraining. We
+propose two methods to learn cross-lingual language models (XLMs): one unsupervised that only relies on monolingual
 data, and one supervised that leverages parallel data with a new cross-lingual language model objective. We obtain
-state-of-the-art results on cross-lingual classification, unsupervised and supervised machine translation. On XNLI,
-our approach pushes the state of the art by an absolute gain of 4.9% accuracy. On unsupervised machine translation,
-we obtain 34.3 BLEU on WMT'16 German-English, improving the previous state of the art by more than 9 BLEU. On
-supervised machine translation, we obtain a new state of the art of 38.5 BLEU on WMT'16 Romanian-English, outperforming
-the previous best approach by more than 4 BLEU. Our code and pretrained models will be made publicly available.*
+state-of-the-art results on cross-lingual classification, unsupervised and supervised machine translation. On XNLI, our
+approach pushes the state of the art by an absolute gain of 4.9% accuracy. On unsupervised machine translation, we
+obtain 34.3 BLEU on WMT'16 German-English, improving the previous state of the art by more than 9 BLEU. On supervised
+machine translation, we obtain a new state of the art of 38.5 BLEU on WMT'16 Romanian-English, outperforming the
+previous best approach by more than 4 BLEU. Our code and pretrained models will be made publicly available.*
 
 Tips:
 
 - XLM has many different checkpoints, which were trained using different objectives: CLM, MLM or TLM. Make sure to
   select the correct objective for your task (e.g. MLM checkpoints are not suitable for generation).
-- XLM has multilingual checkpoints which leverage a specific :obj:`lang` parameter. Check out the
-  :doc:`multi-lingual <../multilingual>` page for more information.
+- XLM has multilingual checkpoints which leverage a specific :obj:`lang` parameter. Check out the :doc:`multi-lingual
+  <../multilingual>` page for more information.
 
-The original code can be found `here <https://github.com/facebookresearch/XLM/>`__.
+This model was contributed by `thomwolf <https://huggingface.co/thomwolf>`__. The original code can be found `here
+<https://github.com/facebookresearch/XLM/>`__.
 
 
 XLMConfig
@@ -50,7 +63,7 @@ XLMTokenizer
 XLM specific outputs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: transformers.modeling_xlm.XLMForQuestionAnsweringOutput
+.. autoclass:: transformers.models.xlm.modeling_xlm.XLMForQuestionAnsweringOutput
     :members:
 
 

@@ -1,8 +1,20 @@
+.. 
+    Copyright 2020 The HuggingFace Team. All rights reserved.
+
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+    the License. You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+    an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+    specific language governing permissions and limitations under the License.
+
 Pipelines
 -----------------------------------------------------------------------------------------------------------------------
 
-The pipelines are a great and easy way to use models for inference. These pipelines are objects that abstract most
-of the complex code from the library, offering a simple API dedicated to several tasks, including Named Entity
+The pipelines are a great and easy way to use models for inference. These pipelines are objects that abstract most of
+the complex code from the library, offering a simple API dedicated to several tasks, including Named Entity
 Recognition, Masked Language Modeling, Sentiment Analysis, Feature Extraction and Question Answering. See the
 :doc:`task summary <../task_summary>` for examples of use.
 
@@ -22,12 +34,13 @@ There are two categories of pipeline abstractions to be aware about:
     - :class:`~transformers.TranslationPipeline`
     - :class:`~transformers.ZeroShotClassificationPipeline`
     - :class:`~transformers.Text2TextGenerationPipeline`
+    - :class:`~transformers.TableQuestionAnsweringPipeline`
 
 The pipeline abstraction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The `pipeline` abstraction is a wrapper around all the other available pipelines. It is instantiated as any
-other pipeline but requires an additional argument which is the `task`.
+The `pipeline` abstraction is a wrapper around all the other available pipelines. It is instantiated as any other
+pipeline but requires an additional argument which is the `task`.
 
 .. autofunction:: transformers.pipeline
 
@@ -61,8 +74,9 @@ FillMaskPipeline
 NerPipeline
 =======================================================================================================================
 
-This class is an alias of the :class:`~transformers.TokenClassificationPipeline` defined below. Please refer to that
-pipeline for documentation and usage examples.
+.. autoclass:: transformers.NerPipeline
+
+See :class:`~transformers.TokenClassificationPipeline` for all details.
 
 QuestionAnsweringPipeline
 =======================================================================================================================
@@ -77,6 +91,13 @@ SummarizationPipeline
 .. autoclass:: transformers.SummarizationPipeline
     :special-members: __call__
     :members:
+
+TableQuestionAnsweringPipeline
+=======================================================================================================================
+
+.. autoclass:: transformers.TableQuestionAnsweringPipeline
+    :special-members: __call__
+
 
 TextClassificationPipeline
 =======================================================================================================================
@@ -103,6 +124,13 @@ TokenClassificationPipeline
 =======================================================================================================================
 
 .. autoclass:: transformers.TokenClassificationPipeline
+    :special-members: __call__
+    :members:
+
+TranslationPipeline
+=======================================================================================================================
+
+.. autoclass:: transformers.TranslationPipeline
     :special-members: __call__
     :members:
 

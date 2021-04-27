@@ -1,3 +1,15 @@
+.. 
+    Copyright 2020 The HuggingFace Team. All rights reserved.
+
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+    the License. You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+    an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+    specific language governing permissions and limitations under the License.
+
 Funnel Transformer
 -----------------------------------------------------------------------------------------------------------------------
 
@@ -30,14 +42,15 @@ Tips:
   directly for tasks that just require a sentence summary (like sequence classification or multiple choice). For other
   tasks, the full model is used; this full model has a decoder that upsamples the final hidden states to the same
   sequence length as the input.
-- The Funnel Transformer checkpoints are all available with a full version and a base version. The first ones should
-  be used for :class:`~transformers.FunnelModel`, :class:`~transformers.FunnelForPreTraining`,
+- The Funnel Transformer checkpoints are all available with a full version and a base version. The first ones should be
+  used for :class:`~transformers.FunnelModel`, :class:`~transformers.FunnelForPreTraining`,
   :class:`~transformers.FunnelForMaskedLM`, :class:`~transformers.FunnelForTokenClassification` and
   class:`~transformers.FunnelForQuestionAnswering`. The second ones should be used for
   :class:`~transformers.FunnelBaseModel`, :class:`~transformers.FunnelForSequenceClassification` and
   :class:`~transformers.FunnelForMultipleChoice`.
 
-The original code can be found `here <https://github.com/laiguokun/Funnel-Transformer>`__.
+This model was contributed by `sgugger <https://huggingface.co/sgugger>`__. The original code can be found `here
+<https://github.com/laiguokun/Funnel-Transformer>`__.
 
 
 FunnelConfig
@@ -65,10 +78,10 @@ FunnelTokenizerFast
 Funnel specific outputs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: transformers.modeling_funnel.FunnelForPreTrainingOutput
+.. autoclass:: transformers.models.funnel.modeling_funnel.FunnelForPreTrainingOutput
     :members:
 
-.. autoclass:: transformers.modeling_tf_funnel.TFFunnelForPreTrainingOutput
+.. autoclass:: transformers.models.funnel.modeling_tf_funnel.TFFunnelForPreTrainingOutput
     :members:
 
 

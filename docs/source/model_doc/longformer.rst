@@ -1,3 +1,15 @@
+.. 
+    Copyright 2020 The HuggingFace Team. All rights reserved.
+
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+    the License. You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+    an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+    specific language governing permissions and limitations under the License.
+
 Longformer
 -----------------------------------------------------------------------------------------------------------------------
 
@@ -22,25 +34,32 @@ contrast to most prior work, we also pretrain Longformer and finetune it on a va
 pretrained Longformer consistently outperforms RoBERTa on long document tasks and sets new state-of-the-art results on
 WikiHop and TriviaQA.*
 
-The Authors' code can be found `here <https://github.com/allenai/longformer>`__.
+Tips:
+
+- Since the Longformer is based on RoBERTa, it doesn't have :obj:`token_type_ids`. You don't need to indicate which
+  token belongs to which segment. Just separate your segments with the separation token :obj:`tokenizer.sep_token` (or
+  :obj:`</s>`).
+
+This model was contributed by `beltagy <https://huggingface.co/beltagy>`__. The Authors' code can be found `here
+<https://github.com/allenai/longformer>`__.
 
 Longformer Self Attention
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Longformer self attention employs self attention on both a "local" context and a "global" context.
-Most tokens only attend "locally" to each other meaning that each token attends to its :math:`\frac{1}{2} w` previous
-tokens and :math:`\frac{1}{2} w` succeding tokens with :math:`w` being the window length as defined in
+Longformer self attention employs self attention on both a "local" context and a "global" context. Most tokens only
+attend "locally" to each other meaning that each token attends to its :math:`\frac{1}{2} w` previous tokens and
+:math:`\frac{1}{2} w` succeding tokens with :math:`w` being the window length as defined in
 :obj:`config.attention_window`. Note that :obj:`config.attention_window` can be of type :obj:`List` to define a
 different :math:`w` for each layer. A selected few tokens attend "globally" to all other tokens, as it is
 conventionally done for all tokens in :obj:`BertSelfAttention`.
 
-Note that "locally" and "globally" attending tokens are projected by different query, key and value matrices.
-Also note that every "locally" attending token not only attends to tokens within its window :math:`w`, but also to all
-"globally" attending tokens so that global attention is *symmetric*.
+Note that "locally" and "globally" attending tokens are projected by different query, key and value matrices. Also note
+that every "locally" attending token not only attends to tokens within its window :math:`w`, but also to all "globally"
+attending tokens so that global attention is *symmetric*.
 
 The user can define which tokens attend "locally" and which tokens attend "globally" by setting the tensor
 :obj:`global_attention_mask` at run-time appropriately. All Longformer models employ the following logic for
-:obj:`global_attention_mask`: 
+:obj:`global_attention_mask`:
 
 - 0: the token attends "locally",
 - 1: the token attends "globally".
@@ -90,6 +109,50 @@ LongformerTokenizerFast
 .. autoclass:: transformers.LongformerTokenizerFast
     :members: 
 
+Longformer specific outputs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: transformers.models.longformer.modeling_longformer.LongformerBaseModelOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_longformer.LongformerBaseModelOutputWithPooling
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_longformer.LongformerMaskedLMOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_longformer.LongformerQuestionAnsweringModelOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_longformer.LongformerSequenceClassifierOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_longformer.LongformerMultipleChoiceModelOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_longformer.LongformerTokenClassifierOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_tf_longformer.TFLongformerBaseModelOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_tf_longformer.TFLongformerBaseModelOutputWithPooling
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_tf_longformer.TFLongformerMaskedLMOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_tf_longformer.TFLongformerQuestionAnsweringModelOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_tf_longformer.TFLongformerSequenceClassifierOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_tf_longformer.TFLongformerMultipleChoiceModelOutput
+    :members: 
+
+.. autoclass:: transformers.models.longformer.modeling_tf_longformer.TFLongformerTokenClassifierOutput
+    :members: 
 
 LongformerModel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -151,5 +214,26 @@ TFLongformerForQuestionAnswering
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: transformers.TFLongformerForQuestionAnswering
+    :members: call
+
+
+TFLongformerForSequenceClassification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: transformers.TFLongformerForSequenceClassification
+    :members: call
+
+
+TFLongformerForTokenClassification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: transformers.TFLongformerForTokenClassification
+    :members: call
+
+
+TFLongformerForMultipleChoice
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: transformers.TFLongformerForMultipleChoice
     :members: call
 

@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ...file_utils import is_sklearn_available, requires_sklearn
+import warnings
+
+from ...file_utils import is_sklearn_available, requires_backends
 
 
 if is_sklearn_available():
@@ -23,13 +25,22 @@ if is_sklearn_available():
     from scipy.stats import pearsonr, spearmanr
 
 
+DEPRECATION_WARNING = (
+    "This metric will be removed from the library soon, metrics should be handled with the 🤗 Datasets "
+    "library. You can have a look at this example script for pointers: "
+    "https://github.com/huggingface/transformers/blob/master/examples/pytorch/text-classification/run_glue.py"
+)
+
+
 def simple_accuracy(preds, labels):
-    requires_sklearn(simple_accuracy)
+    warnings.warn(DEPRECATION_WARNING, FutureWarning)
+    requires_backends(simple_accuracy, "sklearn")
     return (preds == labels).mean()
 
 
 def acc_and_f1(preds, labels):
-    requires_sklearn(acc_and_f1)
+    warnings.warn(DEPRECATION_WARNING, FutureWarning)
+    requires_backends(acc_and_f1, "sklearn")
     acc = simple_accuracy(preds, labels)
     f1 = f1_score(y_true=labels, y_pred=preds)
     return {
@@ -40,7 +51,8 @@ def acc_and_f1(preds, labels):
 
 
 def pearson_and_spearman(preds, labels):
-    requires_sklearn(pearson_and_spearman)
+    warnings.warn(DEPRECATION_WARNING, FutureWarning)
+    requires_backends(pearson_and_spearman, "sklearn")
     pearson_corr = pearsonr(preds, labels)[0]
     spearman_corr = spearmanr(preds, labels)[0]
     return {
@@ -51,7 +63,8 @@ def pearson_and_spearman(preds, labels):
 
 
 def glue_compute_metrics(task_name, preds, labels):
-    requires_sklearn(glue_compute_metrics)
+    warnings.warn(DEPRECATION_WARNING, FutureWarning)
+    requires_backends(glue_compute_metrics, "sklearn")
     assert len(preds) == len(labels), f"Predictions and labels have mismatched lengths {len(preds)} and {len(labels)}"
     if task_name == "cola":
         return {"mcc": matthews_corrcoef(labels, preds)}
@@ -80,7 +93,8 @@ def glue_compute_metrics(task_name, preds, labels):
 
 
 def xnli_compute_metrics(task_name, preds, labels):
-    requires_sklearn(xnli_compute_metrics)
+    warnings.warn(DEPRECATION_WARNING, FutureWarning)
+    requires_backends(xnli_compute_metrics, "sklearn")
     assert len(preds) == len(labels), f"Predictions and labels have mismatched lengths {len(preds)} and {len(labels)}"
     if task_name == "xnli":
         return {"acc": simple_accuracy(preds, labels)}

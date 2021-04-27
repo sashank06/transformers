@@ -1,3 +1,15 @@
+.. 
+    Copyright 2020 The HuggingFace Team. All rights reserved.
+
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+    the License. You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+    an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+    specific language governing permissions and limitations under the License.
+
 ALBERT
 -----------------------------------------------------------------------------------------------------------------------
 
@@ -19,19 +31,20 @@ downstream tasks. However, at some point further model increases become harder d
 longer training times, and unexpected model degradation. To address these problems, we present two parameter-reduction
 techniques to lower memory consumption and increase the training speed of BERT. Comprehensive empirical evidence shows
 that our proposed methods lead to models that scale much better compared to the original BERT. We also use a
-self-supervised loss that focuses on modeling inter-sentence coherence, and show it consistently helps downstream
-tasks with multi-sentence inputs. As a result, our best model establishes new state-of-the-art results on the GLUE,
-RACE, and SQuAD benchmarks while having fewer parameters compared to BERT-large.*
+self-supervised loss that focuses on modeling inter-sentence coherence, and show it consistently helps downstream tasks
+with multi-sentence inputs. As a result, our best model establishes new state-of-the-art results on the GLUE, RACE, and
+SQuAD benchmarks while having fewer parameters compared to BERT-large.*
 
 Tips:
 
-- ALBERT is a model with absolute position embeddings so it's usually advised to pad the inputs on
-  the right rather than the left.
+- ALBERT is a model with absolute position embeddings so it's usually advised to pad the inputs on the right rather
+  than the left.
 - ALBERT uses repeating layers which results in a small memory footprint, however the computational cost remains
   similar to a BERT-like architecture with the same number of hidden layers as it has to iterate through the same
   number of (repeating) layers.
 
-The original code can be found `here <https://github.com/google-research/ALBERT>`__.
+This model was contributed by `lysandre <https://huggingface.co/lysandre>`__. The original code can be found `here
+<https://github.com/google-research/ALBERT>`__.
 
 AlbertConfig
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -48,13 +61,20 @@ AlbertTokenizer
         create_token_type_ids_from_sequences, save_vocabulary
 
 
+AlbertTokenizerFast
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: transformers.AlbertTokenizerFast
+    :members:
+
+
 Albert specific outputs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: transformers.modeling_albert.AlbertForPreTrainingOutput
+.. autoclass:: transformers.models.albert.modeling_albert.AlbertForPreTrainingOutput
     :members:
 
-.. autoclass:: transformers.modeling_tf_albert.TFAlbertForPreTrainingOutput
+.. autoclass:: transformers.models.albert.modeling_tf_albert.TFAlbertForPreTrainingOutput
     :members:
 
 

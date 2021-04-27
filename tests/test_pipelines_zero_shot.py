@@ -1,4 +1,19 @@
+# Copyright 2020 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import unittest
+from copy import deepcopy
 
 from transformers.pipelines import Pipeline
 
@@ -11,12 +26,42 @@ class ZeroShotClassificationPipelineTests(CustomInputPipelineCommonMixin, unitte
         "sshleifer/tiny-distilbert-base-uncased-finetuned-sst-2-english"
     ]  # Models tested without the @slow decorator
     large_models = ["roberta-large-mnli"]  # Models tested with the @slow decorator
+    valid_inputs = [
+        {"sequences": "Who are you voting for in 2020?", "candidate_labels": "politics"},
+        {"sequences": "Who are you voting for in 2020?", "candidate_labels": ["politics"]},
+        {"sequences": "Who are you voting for in 2020?", "candidate_labels": "politics, public health"},
+        {"sequences": "Who are you voting for in 2020?", "candidate_labels": ["politics", "public health"]},
+        {"sequences": ["Who are you voting for in 2020?"], "candidate_labels": "politics"},
+        {
+            "sequences": "Who are you voting for in 2020?",
+            "candidate_labels": "politics",
+            "hypothesis_template": "This text is about {}",
+        },
+    ]
 
     def _test_scores_sum_to_one(self, result):
         sum = 0.0
         for score in result["scores"]:
             sum += score
-        self.assertAlmostEqual(sum, 1.0)
+        self.assertAlmostEqual(sum, 1.0, places=5)
+
+    def _test_entailment_id(self, nlp: Pipeline):
+        config = nlp.model.config
+        original_config = deepcopy(config)
+
+        config.label2id = {"LABEL_0": 0, "LABEL_1": 1, "LABEL_2": 2}
+        self.assertEqual(nlp.entailment_id, -1)
+
+        config.label2id = {"entailment": 0, "neutral": 1, "contradiction": 2}
+        self.assertEqual(nlp.entailment_id, 0)
+
+        config.label2id = {"ENTAIL": 0, "NON-ENTAIL": 1}
+        self.assertEqual(nlp.entailment_id, 0)
+
+        config.label2id = {"ENTAIL": 2, "NEUTRAL": 1, "CONTR": 0}
+        self.assertEqual(nlp.entailment_id, 2)
+
+        nlp.model.config = original_config
 
     def _test_pipeline(self, nlp: Pipeline):
         output_keys = {"sequence", "labels", "scores"}
@@ -59,6 +104,8 @@ class ZeroShotClassificationPipelineTests(CustomInputPipelineCommonMixin, unitte
         ]
         self.assertIsNotNone(nlp)
 
+        self._test_entailment_id(nlp)
+
         for mono_input in valid_mono_inputs:
             mono_result = nlp(**mono_input)
             self.assertIsInstance(mono_result, dict)
@@ -93,7 +140,7 @@ class ZeroShotClassificationPipelineTests(CustomInputPipelineCommonMixin, unitte
                 {
                     "sequences": "The dominant sequence transduction models are based on complex recurrent or convolutional neural networks in an encoder-decoder configuration. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data.",
                     "candidate_labels": ["machine learning", "statistics", "translation", "vision"],
-                    "multi_class": True,
+                    "multi_label": True,
                 },
             ]
 
