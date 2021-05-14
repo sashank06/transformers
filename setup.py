@@ -90,7 +90,7 @@ _deps = [
     "cookiecutter==1.7.2",
     "dataclasses",
     "datasets",
-    "deepspeed>=0.3.15",
+    "deepspeed>=0.3.16",
     "docutils==0.16.0",
     "fairscale>0.3",
     "faiss-cpu",
@@ -99,7 +99,7 @@ _deps = [
     "flake8>=3.8.3",
     "flax>=0.3.2",
     "fugashi>=1.0",
-    "huggingface-hub>=0.0.8",
+    "huggingface-hub==0.0.8",
     "importlib_metadata",
     "ipadic>=1.0.0,<2.0",
     "isort>=5.5.4",
@@ -385,9 +385,14 @@ install_requires = [
 
 setup(
     name="transformers",
+<<<<<<< HEAD
     version="4.6.0.dev0",  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
     author="Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Sam Shleifer, Patrick von Platen, Sylvain Gugger, Google AI Language Team Authors, Open AI team Authors, Facebook AI Authors, Carnegie Mellon University Authors",
 >>>>>>> de4d7b004a24e4bb087eb46d742ea7939bc74644
+=======
+    version="4.7.0.dev0",  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
+    author="Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Sam Shleifer, Patrick von Platen, Sylvain Gugger, Suraj Patil, Stas Bekman, Google AI Language Team Authors, Open AI team Authors, Facebook AI Authors, Carnegie Mellon University Authors",
+>>>>>>> 218d552f306fefc34b60fee8135b976c3ab5807f
     author_email="thomas@huggingface.co",
     description="State-of-the-art Natural Language Processing for TensorFlow 2.0 and PyTorch",
     long_description=open("README.md", "r", encoding="utf-8").read(),
