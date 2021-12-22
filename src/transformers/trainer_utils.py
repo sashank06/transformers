@@ -17,6 +17,7 @@ Utilities for the Trainer and TFTrainer class. Should be independent from PyTorc
 """
 
 import copy
+import functools
 import gc
 import inspect
 import os
@@ -48,11 +49,11 @@ if is_tf_available():
 
 def set_seed(seed: int):
     """
-    Helper function for reproducible behavior to set the seed in ``random``, ``numpy``, ``torch`` and/or ``tf`` (if
+    Helper function for reproducible behavior to set the seed in `random`, `numpy`, `torch` and/or `tf` (if
     installed).
 
     Args:
-        seed (:obj:`int`): The seed to set.
+        seed (`int`): The seed to set.
     """
     random.seed(seed)
     np.random.seed(seed)
@@ -69,24 +70,24 @@ class EvalPrediction(NamedTuple):
     Evaluation output (always contains labels), to be used to compute metrics.
 
     Parameters:
-        predictions (:obj:`np.ndarray`): Predictions of the model.
-        label_ids (:obj:`np.ndarray`): Targets to be matched.
+        predictions (`np.ndarray`): Predictions of the model.
+        label_ids (`np.ndarray`): Targets to be matched.
     """
 
     predictions: Union[np.ndarray, Tuple[np.ndarray]]
-    label_ids: np.ndarray
+    label_ids: Union[np.ndarray, Tuple[np.ndarray]]
 
 
 class EvalLoopOutput(NamedTuple):
     predictions: Union[np.ndarray, Tuple[np.ndarray]]
-    label_ids: Optional[np.ndarray]
+    label_ids: Optional[Union[np.ndarray, Tuple[np.ndarray]]]
     metrics: Optional[Dict[str, float]]
     num_samples: Optional[int]
 
 
 class PredictionOutput(NamedTuple):
     predictions: Union[np.ndarray, Tuple[np.ndarray]]
-    label_ids: Optional[np.ndarray]
+    label_ids: Optional[Union[np.ndarray, Tuple[np.ndarray]]]
     metrics: Optional[Dict[str, float]]
 
 
@@ -124,17 +125,24 @@ class EvaluationStrategy(ExplicitEnum):
     EPOCH = "epoch"
 
 
+class HubStrategy(ExplicitEnum):
+    END = "end"
+    EVERY_SAVE = "every_save"
+    CHECKPOINT = "checkpoint"
+    ALL_CHECKPOINTS = "all_checkpoints"
+
+
 class BestRun(NamedTuple):
     """
-    The best run found by an hyperparameter search (see :class:`~transformers.Trainer.hyperparameter_search`).
+    The best run found by an hyperparameter search (see [`~Trainer.hyperparameter_search`]).
 
     Parameters:
-        run_id (:obj:`str`):
+        run_id (`str`):
             The id of the best run (if models were saved, the corresponding checkpoint will be in the folder ending
             with run-{run_id}).
-        objective (:obj:`float`):
+        objective (`float`):
             The objective that was obtained for this run.
-        hyperparameters (:obj:`Dict[str, Any]`):
+        hyperparameters (`Dict[str, Any]`):
             The hyperparameters picked to get this run.
     """
 
@@ -146,19 +154,19 @@ class BestRun(NamedTuple):
 def default_compute_objective(metrics: Dict[str, float]) -> float:
     """
     The default objective to maximize/minimize when doing an hyperparameter search. It is the evaluation loss if no
-    metrics are provided to the :class:`~transformers.Trainer`, the sum of all metrics otherwise.
+    metrics are provided to the [`Trainer`], the sum of all metrics otherwise.
 
     Args:
-        metrics (:obj:`Dict[str, float]`): The metrics returned by the evaluate method.
+        metrics (`Dict[str, float]`): The metrics returned by the evaluate method.
 
     Return:
-        :obj:`float`: The objective to minimize or maximize
+        `float`: The objective to minimize or maximize
     """
     metrics = copy.deepcopy(metrics)
     loss = metrics.pop("eval_loss", None)
     _ = metrics.pop("epoch", None)
     # Remove speed metrics
-    speed_metrics = [m for m in metrics.keys() if m.endswith("_runtime") or m.endswith("_samples_per_second")]
+    speed_metrics = [m for m in metrics.keys() if m.endswith("_runtime") or m.endswith("_per_second")]
     for sm in speed_metrics:
         _ = metrics.pop(sm, None)
     return loss if len(metrics) == 0 else sum(metrics.values())
@@ -190,14 +198,29 @@ def default_hp_space_ray(trial) -> Dict[str, float]:
     }
 
 
+def default_hp_space_sigopt(trial):
+    return [
+        {"bounds": {"min": 1e-6, "max": 1e-4}, "name": "learning_rate", "type": "double", "transformamtion": "log"},
+        {"bounds": {"min": 1, "max": 6}, "name": "num_train_epochs", "type": "int"},
+        {"bounds": {"min": 1, "max": 40}, "name": "seed", "type": "int"},
+        {
+            "categorical_values": ["4", "8", "16", "32", "64"],
+            "name": "per_device_train_batch_size",
+            "type": "categorical",
+        },
+    ]
+
+
 class HPSearchBackend(ExplicitEnum):
     OPTUNA = "optuna"
     RAY = "ray"
+    SIGOPT = "sigopt"
 
 
 default_hp_space = {
     HPSearchBackend.OPTUNA: default_hp_space_optuna,
     HPSearchBackend.RAY: default_hp_space_ray,
+    HPSearchBackend.SIGOPT: default_hp_space_sigopt,
 }
 
 
@@ -232,7 +255,7 @@ def total_processes_number(local_rank):
     return 1
 
 
-def speed_metrics(split, start_time, num_samples=None):
+def speed_metrics(split, start_time, num_samples=None, num_steps=None):
     """
     Measure and return speed performance metrics.
 
@@ -248,8 +271,11 @@ def speed_metrics(split, start_time, num_samples=None):
     runtime = time.time() - start_time
     result = {f"{split}_runtime": round(runtime, 4)}
     if num_samples is not None:
-        samples_per_second = 1 / (runtime / num_samples)
+        samples_per_second = num_samples / runtime
         result[f"{split}_samples_per_second"] = round(samples_per_second, 3)
+    if num_steps is not None:
+        steps_per_second = num_steps / runtime
+        result[f"{split}_steps_per_second"] = round(steps_per_second, 3)
     return result
 
 
@@ -266,22 +292,23 @@ class TrainerMemoryTracker:
     """
     A helper class that tracks cpu and gpu memory.
 
-    This class will silently skip unless ``psutil`` is available. Install with ``pip install psutil``.
+    This class will silently skip unless `psutil` is available. Install with `pip install psutil`.
 
     When a stage completes, it can pass metrics dict to update with the memory metrics gathered during this stage.
 
-    Example ::
+    Example :
 
-        self._memory_tracker = TrainerMemoryTracker(self.args.skip_memory_metrics)
-        self._memory_tracker.start()
-        code ...
-        metrics = {"train_runtime": 10.5}
-        self._memory_tracker.stop_and_update_metrics(metrics)
+    ```python
+    self._memory_tracker = TrainerMemoryTracker(self.args.skip_memory_metrics)
+    self._memory_tracker.start()
+    code ...
+    metrics = {"train_runtime": 10.5}
+    self._memory_tracker.stop_and_update_metrics(metrics)
+    ```
 
-    At the moment GPU tracking is only for ``pytorch``, but can be extended to support ``tensorflow``.
+    At the moment GPU tracking is only for `pytorch`, but can be extended to support `tensorflow`.
 
-    To understand this class' intricacies please read the documentation of :meth:`~transformers.Trainer.log_metrics`.
-
+    To understand this class' intricacies please read the documentation of [`~Trainer.log_metrics`].
     """
 
     # map trainer methods to metrics prefix
@@ -401,6 +428,8 @@ class TrainerMemoryTracker:
             self.gpu_mem_used_now = self.torch.cuda.memory_allocated()
             self.gpu_mem_used_peak = self.torch.cuda.max_memory_allocated()
             self.gpu[self.cur_stage] = dict(
+                begin=self.gpu_mem_used_at_start,
+                end=self.gpu_mem_used_now,
                 alloc=(self.gpu_mem_used_now - self.gpu_mem_used_at_start),
                 peaked=max(0, self.gpu_mem_used_peak - self.gpu_mem_used_now),
             )
@@ -408,6 +437,8 @@ class TrainerMemoryTracker:
         # cpu
         self.cpu_mem_used_now = self.cpu_mem_used()
         self.cpu[self.cur_stage] = dict(
+            begin=self.cpu_mem_used_at_start,
+            end=self.cpu_mem_used_now,
             alloc=(self.cpu_mem_used_now - self.cpu_mem_used_at_start),
             peaked=max(0, self.cpu_mem_used_peak - self.cpu_mem_used_now),
         )
@@ -416,7 +447,7 @@ class TrainerMemoryTracker:
         self.cur_stage = None
 
     def update_metrics(self, stage, metrics):
-        """stop tracking for the passed stage"""
+        """updates the metrics"""
         if self.skip_memory_metrics:
             return
 
@@ -436,9 +467,28 @@ class TrainerMemoryTracker:
                     metrics[f"{stage}_mem_cpu_{t}_delta"] = self.cpu[stage][t]
                 if self.torch is not None and stage in self.gpu and t in self.gpu[stage]:
                     metrics[f"{stage}_mem_gpu_{t}_delta"] = self.gpu[stage][t]
+            # if we need additional debug info, enable the following
+            # for t in ["begin", "end"]:
+            #     if stage in self.cpu and t in self.cpu[stage]:
+            #         metrics[f"{stage}_mem_cpu_{t}"] = self.cpu[stage][t]
+            #     if self.torch is not None and stage in self.gpu and t in self.gpu[stage]:
+            #         metrics[f"{stage}_mem_gpu_{t}"] = self.gpu[stage][t]
+
+        # since memory can be allocated before init, and it might be difficult to track overall
+        # memory usage, in particular for GPU, let's report memory usage at the point init was called
+        if stages[0] == "init":
+            metrics["before_init_mem_cpu"] = self.cpu["init"]["begin"]
+            if self.torch is not None:
+                metrics["before_init_mem_gpu"] = self.gpu["init"]["begin"]
+            # if we also wanted to report any additional memory allocations in between init and
+            # whatever the next stage was we could also report this:
+            # if self.cpu["init"]["end"] != self.cpu[stage]["begin"]:
+            #     metrics[f"after_init_mem_cpu_delta"] = self.cpu[stage]["begin"] - self.cpu["init"]["end"]
+            # if self.torch is not None and self.gpu["init"]["end"] != self.gpu[stage]["begin"]:
+            #     metrics[f"after_init_mem_gpu_delta"] = self.gpu[stage]["begin"] - self.gpu["init"]["end"]
 
     def stop_and_update_metrics(self, metrics=None):
-        """combine stop + update in one call for simpler code"""
+        """combine stop and metrics update in one call for simpler code"""
         if self.skip_memory_metrics:
             return
 
@@ -463,6 +513,16 @@ def denumpify_detensorize(metrics):
     elif is_torch_available() and isinstance(metrics, torch.Tensor) and metrics.numel() == 1:
         return metrics.item()
     return metrics
+
+
+def number_of_arguments(func):
+    """
+    Return the number of arguments of the passed function, even if it's a partial function.
+    """
+    if isinstance(func, functools.partial):
+        total_args = len(inspect.signature(func.func).parameters)
+        return total_args - len(func.args) - len(func.keywords)
+    return len(inspect.signature(func).parameters)
 
 
 class ShardedDDPOption(ExplicitEnum):

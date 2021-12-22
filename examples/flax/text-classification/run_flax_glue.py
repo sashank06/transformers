@@ -15,11 +15,13 @@
 # limitations under the License.
 """ Finetuning a 🤗 Flax Transformers model for sequence classification on GLUE."""
 import argparse
+import json
 import logging
 import os
 import random
 import time
 from itertools import chain
+from pathlib import Path
 from typing import Any, Callable, Dict, Tuple
 
 import datasets
@@ -29,13 +31,19 @@ import jax
 import jax.numpy as jnp
 import optax
 import transformers
-from flax import linen as nn
 from flax import struct, traverse_util
 from flax.jax_utils import replicate, unreplicate
-from flax.metrics import tensorboard
 from flax.training import train_state
-from flax.training.common_utils import get_metrics, onehot, shard, shard_prng_key
-from transformers import AutoConfig, AutoTokenizer, FlaxAutoModelForSequenceClassification, PretrainedConfig
+from flax.training.common_utils import get_metrics, onehot, shard
+from huggingface_hub import Repository
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    FlaxAutoModelForSequenceClassification,
+    PretrainedConfig,
+    is_tensorboard_available,
+)
+from transformers.file_utils import get_full_repo_name
 
 
 logger = logging.getLogger(__name__)
@@ -120,16 +128,19 @@ def parse_args():
         help="Total number of training steps to perform. If provided, overrides num_train_epochs.",
     )
     parser.add_argument(
-        "--gradient_accumulation_steps",
-        type=int,
-        default=1,
-        help="Number of updates steps to accumulate before performing a backward/update pass.",
-    )
-    parser.add_argument(
         "--num_warmup_steps", type=int, default=0, help="Number of steps for the warmup in the lr scheduler."
     )
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
-    parser.add_argument("--seed", type=int, default=2, help="A seed for reproducible training.")
+    parser.add_argument("--seed", type=int, default=3, help="A seed for reproducible training.")
+    parser.add_argument(
+        "--push_to_hub",
+        action="store_true",
+        help="If passed, model checkpoints and tensorboard logs will be pushed to the hub",
+    )
+    parser.add_argument(
+        "--hub_model_id", type=str, help="The name of the repository to keep in sync with the local `output_dir`."
+    )
+    parser.add_argument("--hub_token", type=str, help="The token to use to push to the Model Hub.")
     args = parser.parse_args()
 
     # Sanity checks
@@ -143,6 +154,9 @@ def parse_args():
             extension = args.validation_file.split(".")[-1]
             assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
 
+    if args.push_to_hub:
+        assert args.output_dir is not None, "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
+
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
 
@@ -154,6 +168,7 @@ def create_train_state(
     learning_rate_fn: Callable[[int], float],
     is_regression: bool,
     num_labels: int,
+    weight_decay: float,
 ) -> train_state.TrainState:
     """Create initial training state."""
 
@@ -171,25 +186,17 @@ def create_train_state(
         logits_fn: Callable = struct.field(pytree_node=False)
         loss_fn: Callable = struct.field(pytree_node=False)
 
-    # Creates a multi-optimizer consisting of two "Adam with weight decay" optimizers.
-    def adamw(weight_decay):
-        return optax.adamw(learning_rate=learning_rate_fn, b1=0.9, b2=0.999, eps=1e-6, weight_decay=weight_decay)
+    # We use Optax's "masking" functionality to not apply weight decay
+    # to bias and LayerNorm scale parameters. decay_mask_fn returns a
+    # mask boolean with the same structure as the parameters.
+    # The mask is True for parameters that should be decayed.
+    def decay_mask_fn(params):
+        flat_params = traverse_util.flatten_dict(params)
+        flat_mask = {path: (path[-1] != "bias" and path[-2:] != ("LayerNorm", "scale")) for path in flat_params}
+        return traverse_util.unflatten_dict(flat_mask)
 
-    def traverse(fn):
-        def mask(data):
-            flat = traverse_util.flatten_dict(data)
-            return traverse_util.unflatten_dict({k: fn(k, v) for k, v in flat.items()})
-
-        return mask
-
-    # We use Optax's "masking" functionality to create a multi-optimizer, one
-    # with weight decay and the other without. Note masking means the optimizer
-    # will ignore these paths.
-    decay_path = lambda p: not any(x in p for x in ["bias", "LayerNorm.weight"])  # noqa: E731
-
-    tx = optax.chain(
-        optax.masked(adamw(0.0), mask=traverse(lambda path, _: decay_path(path))),
-        optax.masked(adamw(0.01), mask=traverse(lambda path, _: not decay_path(path))),
+    tx = optax.adamw(
+        learning_rate=learning_rate_fn, b1=0.9, b2=0.999, eps=1e-6, weight_decay=weight_decay, mask=decay_mask_fn
     )
 
     if is_regression:
@@ -207,7 +214,6 @@ def create_train_state(
     else:  # Classification.
 
         def cross_entropy_loss(logits, labels):
-            logits = nn.log_softmax(logits)
             xentropy = optax.softmax_cross_entropy(logits, onehot(labels, num_classes=num_labels))
             return jnp.mean(xentropy)
 
@@ -264,7 +270,7 @@ def main():
 
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
@@ -276,6 +282,14 @@ def main():
     else:
         datasets.utils.logging.set_verbosity_error()
         transformers.utils.logging.set_verbosity_error()
+
+    # Handle the repository creation
+    if args.push_to_hub:
+        if args.hub_model_id is None:
+            repo_name = get_full_repo_name(Path(args.output_dir).absolute().name, token=args.hub_token)
+        else:
+            repo_name = args.hub_model_id
+        repo = Repository(args.output_dir, clone_from=repo_name)
 
     # Get the datasets: you can either provide your own CSV/JSON training and evaluation files (see below)
     # or specify a GLUE benchmark task (the dataset will be downloaded automatically from the datasets Hub).
@@ -395,8 +409,23 @@ def main():
         logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
     # Define a summary writer
-    summary_writer = tensorboard.SummaryWriter(args.output_dir)
-    summary_writer.hparams(vars(args))
+    has_tensorboard = is_tensorboard_available()
+    if has_tensorboard and jax.process_index() == 0:
+        try:
+            from flax.metrics.tensorboard import SummaryWriter
+
+            summary_writer = SummaryWriter(args.output_dir)
+            summary_writer.hparams(vars(args))
+        except ImportError as ie:
+            has_tensorboard = False
+            logger.warning(
+                f"Unable to display metrics through TensorBoard because some package are not installed: {ie}"
+            )
+    else:
+        logger.warning(
+            "Unable to display metrics through TensorBoard because the package is not installed: "
+            "Please run pip install tensorboard to enable."
+        )
 
     def write_metric(train_metrics, eval_metrics, train_time, step):
         summary_writer.scalar("train_time", train_time, step)
@@ -412,6 +441,7 @@ def main():
 
     num_epochs = int(args.num_train_epochs)
     rng = jax.random.PRNGKey(args.seed)
+    dropout_rngs = jax.random.split(rng, jax.local_device_count())
 
     train_batch_size = args.per_device_train_batch_size * jax.local_device_count()
     eval_batch_size = args.per_device_eval_batch_size * jax.local_device_count()
@@ -420,26 +450,29 @@ def main():
         len(train_dataset), train_batch_size, args.num_train_epochs, args.num_warmup_steps, args.learning_rate
     )
 
-    state = create_train_state(model, learning_rate_fn, is_regression, num_labels=num_labels)
+    state = create_train_state(
+        model, learning_rate_fn, is_regression, num_labels=num_labels, weight_decay=args.weight_decay
+    )
 
     # define step functions
     def train_step(
         state: train_state.TrainState, batch: Dict[str, Array], dropout_rng: PRNGKey
     ) -> Tuple[train_state.TrainState, float]:
         """Trains model with an optimizer (both in `state`) on `batch`, returning a pair `(new_state, loss)`."""
+        dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
         targets = batch.pop("labels")
 
         def loss_fn(params):
             logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True)[0]
             loss = state.loss_fn(logits, targets)
-            return loss, logits
+            return loss
 
-        grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-        (loss, logits), grad = grad_fn(state.params)
+        grad_fn = jax.value_and_grad(loss_fn)
+        loss, grad = grad_fn(state.params)
         grad = jax.lax.pmean(grad, "batch")
         new_state = state.apply_gradients(grads=grad)
         metrics = jax.lax.pmean({"loss": loss, "learning_rate": learning_rate_fn(state.step)}, axis_name="batch")
-        return new_state, metrics
+        return new_state, metrics, new_dropout_rng
 
     p_train_step = jax.pmap(train_step, axis_name="batch", donate_argnums=(0,))
 
@@ -457,27 +490,25 @@ def main():
     logger.info(f"===== Starting training ({num_epochs} epochs) =====")
     train_time = 0
 
+    # make sure weights are replicated on each device
+    state = replicate(state)
+
     for epoch in range(1, num_epochs + 1):
         logger.info(f"Epoch {epoch}")
         logger.info("  Training...")
 
-        # make sure weights are replicated on each device
-        state = replicate(state)
-
         train_start = time.time()
         train_metrics = []
-        rng, input_rng, dropout_rng = jax.random.split(rng, 3)
+        rng, input_rng = jax.random.split(rng)
 
         # train
         for batch in glue_train_data_collator(input_rng, train_dataset, train_batch_size):
-            dropout_rngs = shard_prng_key(dropout_rng)
-            state, metrics = p_train_step(state, batch, dropout_rngs)
+            state, metrics, dropout_rngs = p_train_step(state, batch, dropout_rngs)
             train_metrics.append(metrics)
         train_time += time.time() - train_start
         logger.info(f"    Done! Training metrics: {unreplicate(metrics)}")
 
         logger.info("  Evaluating...")
-        rng, input_rng = jax.random.split(rng)
 
         # evaluate
         for batch in glue_eval_data_collator(eval_dataset, eval_batch_size):
@@ -490,27 +521,37 @@ def main():
 
         # make sure leftover batch is evaluated on one device
         if num_leftover_samples > 0 and jax.process_index() == 0:
-            # put weights on single device
-            state = unreplicate(state)
-
             # take leftover samples
             batch = eval_dataset[-num_leftover_samples:]
             batch = {k: jnp.array(v) for k, v in batch.items()}
 
             labels = batch.pop("labels")
-            predictions = eval_step(state, batch)
+            predictions = eval_step(unreplicate(state), batch)
             metric.add_batch(predictions=predictions, references=labels)
 
         eval_metric = metric.compute()
         logger.info(f"    Done! Eval metrics: {eval_metric}")
 
         cur_step = epoch * (len(train_dataset) // train_batch_size)
-        write_metric(train_metrics, eval_metric, train_time, cur_step)
 
-    # save last checkpoint
+        # Save metrics
+        if has_tensorboard and jax.process_index() == 0:
+            write_metric(train_metrics, eval_metric, train_time, cur_step)
+
+        # save checkpoint after each epoch and push checkpoint to the hub
+        if jax.process_index() == 0:
+            params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
+            model.save_pretrained(args.output_dir, params=params)
+            tokenizer.save_pretrained(args.output_dir)
+            if args.push_to_hub:
+                repo.push_to_hub(commit_message=f"Saving weights and logs of epoch {epoch}", blocking=False)
+
+    # save the eval metrics in json
     if jax.process_index() == 0:
-        params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
-        model.save_pretrained(args.output_dir, params=params)
+        eval_metric = {f"eval_{metric_name}": value for metric_name, value in eval_metric.items()}
+        path = os.path.join(args.output_dir, "eval_results.json")
+        with open(path, "w") as f:
+            json.dump(eval_metric, f, indent=4, sort_keys=True)
 
 
 if __name__ == "__main__":
