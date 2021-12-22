@@ -14,7 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ XLM-RoBERTa configuration """
+from collections import OrderedDict
+from typing import Mapping
 
+from ...onnx import OnnxConfig
 from ...utils import logging
 from ..roberta.configuration_roberta import RobertaConfig
 
@@ -33,8 +36,24 @@ XLM_ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class XLMRobertaConfig(RobertaConfig):
     """
-    This class overrides :class:`~transformers.RobertaConfig`. Please check the superclass for the appropriate
+    This class overrides [`RobertaConfig`]. Please check the superclass for the appropriate
     documentation alongside usage examples.
     """
 
     model_type = "xlm-roberta"
+
+
+# Copied from transformers.models.roberta.configuration_roberta.RobertaOnnxConfig with Roberta->XLMRoberta
+class XLMRobertaOnnxConfig(OnnxConfig):
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return OrderedDict(
+            [
+                ("input_ids", {0: "batch", 1: "sequence"}),
+                ("attention_mask", {0: "batch", 1: "sequence"}),
+            ]
+        )
+
+    @property
+    def outputs(self) -> Mapping[str, Mapping[int, str]]:
+        return OrderedDict([("last_hidden_state", {0: "batch", 1: "sequence"}), ("pooler_output", {0: "batch"})])
