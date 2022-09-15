@@ -12,9 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" DETR model configuration """
+""" DETR model configuration"""
+
+from collections import OrderedDict
+from typing import Mapping
+
+from packaging import version
 
 from ...configuration_utils import PretrainedConfig
+from ...onnx import OnnxConfig
 from ...utils import logging
 
 
@@ -28,18 +34,20 @@ DETR_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class DetrConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a [`DetrModel`]. It is used to
-    instantiate a DETR model according to the specified arguments, defining the model architecture. Instantiating a
-    configuration with the defaults will yield a similar configuration to that of the DETR [facebook/detr-resnet-50](https://huggingface.co/facebook/detr-resnet-50) architecture.
+    This is the configuration class to store the configuration of a [`DetrModel`]. It is used to instantiate a DETR
+    model according to the specified arguments, defining the model architecture. Instantiating a configuration with the
+    defaults will yield a similar configuration to that of the DETR
+    [facebook/detr-resnet-50](https://huggingface.co/facebook/detr-resnet-50) architecture.
 
-    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model
-    outputs. Read the documentation from [`PretrainedConfig`] for more information.
-
+    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
+    documentation from [`PretrainedConfig`] for more information.
 
     Args:
+        num_channels (`int`, *optional*, defaults to 3):
+            The number of input channels.
         num_queries (`int`, *optional*, defaults to 100):
-            Number of object queries, i.e. detection slots. This is the maximal number of objects
-            [`DetrModel`] can detect in a single image. For COCO, we recommend 100 queries.
+            Number of object queries, i.e. detection slots. This is the maximal number of objects [`DetrModel`] can
+            detect in a single image. For COCO, we recommend 100 queries.
         d_model (`int`, *optional*, defaults to 256):
             Dimension of the layers.
         encoder_layers (`int`, *optional*, defaults to 6):
@@ -55,8 +63,8 @@ class DetrConfig(PretrainedConfig):
         encoder_ffn_dim (`int`, *optional*, defaults to 2048):
             Dimension of the "intermediate" (often named feed-forward) layer in decoder.
         activation_function (`str` or `function`, *optional*, defaults to `"relu"`):
-            The non-linear activation function (function or string) in the encoder and pooler. If string,
-            `"gelu"`, `"relu"`, `"silu"` and `"gelu_new"` are supported.
+            The non-linear activation function (function or string) in the encoder and pooler. If string, `"gelu"`,
+            `"relu"`, `"silu"` and `"gelu_new"` are supported.
         dropout (`float`, *optional*, defaults to 0.1):
             The dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
         attention_dropout (`float`, *optional*, defaults to 0.0):
@@ -67,20 +75,22 @@ class DetrConfig(PretrainedConfig):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
         init_xavier_std (`float`, *optional*, defaults to 1):
             The scaling factor used for the Xavier initialization gain in the HM Attention map module.
-        encoder_layerdrop: (`float`, *optional*, defaults to 0.0):
-            The LayerDrop probability for the encoder. See the [LayerDrop paper](see
-            https://arxiv.org/abs/1909.11556) for more details.
-        decoder_layerdrop: (`float`, *optional*, defaults to 0.0):
-            The LayerDrop probability for the decoder. See the [LayerDrop paper](see
-            https://arxiv.org/abs/1909.11556) for more details.
+        encoder_layerdrop (`float`, *optional*, defaults to 0.0):
+            The LayerDrop probability for the encoder. See the [LayerDrop paper](see https://arxiv.org/abs/1909.11556)
+            for more details.
+        decoder_layerdrop (`float`, *optional*, defaults to 0.0):
+            The LayerDrop probability for the decoder. See the [LayerDrop paper](see https://arxiv.org/abs/1909.11556)
+            for more details.
         auxiliary_loss (`bool`, *optional*, defaults to `False`):
             Whether auxiliary decoding losses (loss at each decoder layer) are to be used.
         position_embedding_type (`str`, *optional*, defaults to `"sine"`):
-            Type of position embeddings to be used on top of the image features. One of `"sine"` or
-            `"learned"`.
+            Type of position embeddings to be used on top of the image features. One of `"sine"` or `"learned"`.
         backbone (`str`, *optional*, defaults to `"resnet50"`):
             Name of convolutional backbone to use. Supports any convolutional backbone from the timm package. For a
-            list of all available models, see [this page](https://rwightman.github.io/pytorch-image-models/#load-a-pretrained-model).
+            list of all available models, see [this
+            page](https://rwightman.github.io/pytorch-image-models/#load-a-pretrained-model).
+        use_pretrained_backbone (`bool`, *optional*, defaults to `True`):
+            Whether to use pretrained weights for the backbone.
         dilation (`bool`, *optional*, defaults to `False`):
             Whether to replace stride with dilation in the last convolutional block (DC5).
         class_cost (`float`, *optional*, defaults to 1):
@@ -123,6 +133,7 @@ class DetrConfig(PretrainedConfig):
 
     def __init__(
         self,
+        num_channels=3,
         num_queries=100,
         max_position_embeddings=1024,
         encoder_layers=6,
@@ -146,6 +157,7 @@ class DetrConfig(PretrainedConfig):
         auxiliary_loss=False,
         position_embedding_type="sine",
         backbone="resnet50",
+        use_pretrained_backbone=True,
         dilation=False,
         class_cost=1,
         bbox_cost=5,
@@ -157,6 +169,7 @@ class DetrConfig(PretrainedConfig):
         eos_coefficient=0.1,
         **kwargs
     ):
+        self.num_channels = num_channels
         self.num_queries = num_queries
         self.max_position_embeddings = max_position_embeddings
         self.d_model = d_model
@@ -179,6 +192,7 @@ class DetrConfig(PretrainedConfig):
         self.auxiliary_loss = auxiliary_loss
         self.position_embedding_type = position_embedding_type
         self.backbone = backbone
+        self.use_pretrained_backbone = use_pretrained_backbone
         self.dilation = dilation
         # Hungarian matcher
         self.class_cost = class_cost
@@ -199,3 +213,25 @@ class DetrConfig(PretrainedConfig):
     @property
     def hidden_size(self) -> int:
         return self.d_model
+
+
+class DetrOnnxConfig(OnnxConfig):
+
+    torch_onnx_minimum_version = version.parse("1.11")
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return OrderedDict(
+            [
+                ("pixel_values", {0: "batch", 1: "num_channels", 2: "height", 3: "width"}),
+                ("pixel_mask", {0: "batch"}),
+            ]
+        )
+
+    @property
+    def atol_for_validation(self) -> float:
+        return 1e-5
+
+    @property
+    def default_onnx_opset(self) -> int:
+        return 12

@@ -14,13 +14,12 @@
 # limitations under the License.
 
 import inspect
-from abc import ABC
 
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
 
-from .file_utils import add_start_docstrings
+from .utils import add_start_docstrings
 from .utils.logging import get_logger
 
 
@@ -32,9 +31,8 @@ LOGITS_PROCESSOR_INPUTS_DOCSTRING = r"""
         input_ids (`jnp.ndarray` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary.
 
-            Indices can be obtained using [`PreTrainedTokenizer`]. See
-            [`PreTrainedTokenizer.encode`] and [`PreTrainedTokenizer.__call__`] for
-            details.
+            Indices can be obtained using [`PreTrainedTokenizer`]. See [`PreTrainedTokenizer.encode`] and
+            [`PreTrainedTokenizer.__call__`] for details.
 
             [What are input IDs?](../glossary#input-ids)
         scores (`jnp.ndarray` of shape `(batch_size, config.vocab_size)`):
@@ -49,7 +47,7 @@ LOGITS_PROCESSOR_INPUTS_DOCSTRING = r"""
 """
 
 
-class FlaxLogitsProcessor(ABC):
+class FlaxLogitsProcessor:
     """Abstract base class for all logit processors that can be applied during generation."""
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
@@ -60,7 +58,7 @@ class FlaxLogitsProcessor(ABC):
         )
 
 
-class FlaxLogitsWarper(ABC):
+class FlaxLogitsWarper:
     """Abstract base class for all logit warpers that can be applied during generation with multinomial sampling."""
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
@@ -73,10 +71,9 @@ class FlaxLogitsWarper(ABC):
 
 class FlaxLogitsProcessorList(list):
     """
-    This class can be used to create a list of [`FlaxLogitsProcessor`] or
-    [`FlaxLogitsWarper`] to subsequently process a `scores` input tensor. This class inherits
-    from list and adds a specific *__call__* method to apply each [`FlaxLogitsProcessor`] or
-    [`FlaxLogitsWarper`] to the inputs.
+    This class can be used to create a list of [`FlaxLogitsProcessor`] or [`FlaxLogitsWarper`] to subsequently process
+    a `scores` input tensor. This class inherits from list and adds a specific *__call__* method to apply each
+    [`FlaxLogitsProcessor`] or [`FlaxLogitsWarper`] to the inputs.
     """
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
@@ -97,7 +94,7 @@ class FlaxLogitsProcessorList(list):
 
 class FlaxTemperatureLogitsWarper(FlaxLogitsWarper):
     r"""
-    [`LogitsWarper`] for temperature (exponential scaling output probability distribution).
+    [`FlaxLogitsWarper`] for temperature (exponential scaling output probability distribution).
 
     Args:
         temperature (`float`):
@@ -117,13 +114,12 @@ class FlaxTemperatureLogitsWarper(FlaxLogitsWarper):
 
 class FlaxTopPLogitsWarper(FlaxLogitsWarper):
     """
-    [`LogitsWarper`] that performs top-p, i.e. restricting to top tokens summing to prob_cut_off <=
-    prob_cut_off.
+    [`FlaxLogitsWarper`] that performs top-p, i.e. restricting to top tokens summing to prob_cut_off <= prob_cut_off.
 
     Args:
         top_p (`float`):
-            If set to < 1, only the most probable tokens with probabilities that add up to `top_p` or higher are
-            kept for generation.
+            If set to < 1, only the most probable tokens with probabilities that add up to `top_p` or higher are kept
+            for generation.
         filter_value (`float`, *optional*, defaults to `-float("Inf")`):
             All filtered values will be set to this float value.
         min_tokens_to_keep (`int`, *optional*, defaults to 1):
@@ -146,10 +142,11 @@ class FlaxTopPLogitsWarper(FlaxLogitsWarper):
         score_mask = cumulative_probs < self.top_p
 
         # include the token that is higher than top_p as well
-        score_mask |= jax.ops.index_update(jnp.roll(score_mask, 1), jax.ops.index[:, 0], True)
+        score_mask = jnp.roll(score_mask, 1)
+        score_mask |= score_mask.at[:, 0].set(True)
 
         # min tokens to keep
-        score_mask = jax.ops.index_update(score_mask, jax.ops.index[:, : self.min_tokens_to_keep], True)
+        score_mask = score_mask.at[:, : self.min_tokens_to_keep].set(True)
 
         topk_next_scores = jnp.where(score_mask, topk_scores, mask_scores)
         next_scores = jax.lax.sort_key_val(topk_indices, topk_next_scores)[-1]
@@ -159,7 +156,7 @@ class FlaxTopPLogitsWarper(FlaxLogitsWarper):
 
 class FlaxTopKLogitsWarper(FlaxLogitsWarper):
     r"""
-    [`LogitsWarper`] that performs top-k, i.e. restricting to the k highest probability elements.
+    [`FlaxLogitsWarper`] that performs top-k, i.e. restricting to the k highest probability elements.
 
     Args:
         top_k (`int`):
@@ -188,7 +185,7 @@ class FlaxTopKLogitsWarper(FlaxLogitsWarper):
         topk_scores_flat = topk_scores.flatten()
         topk_indices_flat = topk_indices.flatten() + shift
 
-        next_scores_flat = jax.ops.index_update(next_scores_flat, topk_indices_flat, topk_scores_flat)
+        next_scores_flat = next_scores_flat.at[topk_indices_flat].set(topk_scores_flat)
         next_scores = next_scores_flat.reshape(batch_size, vocab_size)
         return next_scores
 
@@ -210,17 +207,14 @@ class FlaxForcedBOSTokenLogitsProcessor(FlaxLogitsProcessor):
 
         apply_penalty = 1 - jnp.bool_(cur_len - 1)
 
-        scores = jnp.where(
-            apply_penalty, jax.ops.index_update(new_scores, jax.ops.index[:, self.bos_token_id], 0), scores
-        )
+        scores = jnp.where(apply_penalty, new_scores.at[:, self.bos_token_id].set(0), scores)
 
         return scores
 
 
 class FlaxForcedEOSTokenLogitsProcessor(FlaxLogitsProcessor):
     r"""
-    [`FlaxLogitsProcessor`] that enforces the specified token as the last generated token when
-    `max_length` is reached.
+    [`FlaxLogitsProcessor`] that enforces the specified token as the last generated token when `max_length` is reached.
 
     Args:
         max_length (`int`):
@@ -238,9 +232,7 @@ class FlaxForcedEOSTokenLogitsProcessor(FlaxLogitsProcessor):
 
         apply_penalty = 1 - jnp.bool_(cur_len - self.max_length + 1)
 
-        scores = jnp.where(
-            apply_penalty, jax.ops.index_update(new_scores, jax.ops.index[:, self.eos_token_id], 0), scores
-        )
+        scores = jnp.where(apply_penalty, new_scores.at[:, self.eos_token_id].set(0), scores)
 
         return scores
 
@@ -271,8 +263,6 @@ class FlaxMinLengthLogitsProcessor(FlaxLogitsProcessor):
         # create boolean flag to decide if min length penalty should be applied
         apply_penalty = 1 - jnp.clip(cur_len - self.min_length, 0, 1)
 
-        scores = jnp.where(
-            apply_penalty, jax.ops.index_update(scores, jax.ops.index[:, self.eos_token_id], -float("inf")), scores
-        )
+        scores = jnp.where(apply_penalty, scores.at[:, self.eos_token_id].set(-float("inf")), scores)
 
         return scores

@@ -27,16 +27,24 @@ from .tokenization_utils import JiebaPreTokenizer
 
 logger = logging.get_logger(__name__)
 
-VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
+VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt", "tokenizer_file": "tokenizer.json"}
 
 PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
         "junnyu/roformer_chinese_small": "https://huggingface.co/junnyu/roformer_chinese_small/resolve/main/vocab.txt",
         "junnyu/roformer_chinese_base": "https://huggingface.co/junnyu/roformer_chinese_base/resolve/main/vocab.txt",
-        "junnyu/roformer_chinese_char_small": "https://huggingface.co/junnyu/roformer_chinese_char_small/resolve/main/vocab.txt",
-        "junnyu/roformer_chinese_char_base": "https://huggingface.co/junnyu/roformer_chinese_char_base/resolve/main/vocab.txt",
-        "junnyu/roformer_small_discriminator": "https://huggingface.co/junnyu/roformer_small_discriminator/resolve/main/vocab.txt",
-        "junnyu/roformer_small_generator": "https://huggingface.co/junnyu/roformer_small_generator/resolve/main/vocab.txt",
+        "junnyu/roformer_chinese_char_small": (
+            "https://huggingface.co/junnyu/roformer_chinese_char_small/resolve/main/vocab.txt"
+        ),
+        "junnyu/roformer_chinese_char_base": (
+            "https://huggingface.co/junnyu/roformer_chinese_char_base/resolve/main/vocab.txt"
+        ),
+        "junnyu/roformer_small_discriminator": (
+            "https://huggingface.co/junnyu/roformer_small_discriminator/resolve/main/vocab.txt"
+        ),
+        "junnyu/roformer_small_generator": (
+            "https://huggingface.co/junnyu/roformer_small_generator/resolve/main/vocab.txt"
+        ),
     }
 }
 
@@ -64,18 +72,18 @@ class RoFormerTokenizerFast(PreTrainedTokenizerFast):
     r"""
     Construct a "fast" RoFormer tokenizer (backed by HuggingFace's *tokenizers* library).
 
-    [`RoFormerTokenizerFast`] is almost identical to [`BertTokenizerFast`] and
-    runs end-to-end tokenization: punctuation splitting and wordpiece. There are some difference between them when
-    tokenizing Chinese.
+    [`RoFormerTokenizerFast`] is almost identical to [`BertTokenizerFast`] and runs end-to-end tokenization:
+    punctuation splitting and wordpiece. There are some difference between them when tokenizing Chinese.
 
-    This tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main
-    methods. Users should refer to this superclass for more information regarding those methods.
+    This tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main methods. Users should
+    refer to this superclass for more information regarding those methods.
 
     Example:
 
     ```python
     >>> from transformers import RoFormerTokenizerFast
-    >>> tokenizer = RoFormerTokenizerFast.from_pretrained('junnyu/roformer_chinese_base')
+
+    >>> tokenizer = RoFormerTokenizerFast.from_pretrained("junnyu/roformer_chinese_base")
     >>> tokenizer.tokenize("今天天气非常好。")
     # ['今', '天', '天', '气', '非常', '好', '。']
     ```"""
@@ -181,8 +189,7 @@ class RoFormerTokenizerFast(PreTrainedTokenizerFast):
                 Optional second list of IDs for sequence pairs.
 
         Returns:
-            `List[int]`: List of [token type IDs](../glossary#token-type-ids) according to the given
-            sequence(s).
+            `List[int]`: List of [token type IDs](../glossary#token-type-ids) according to the given sequence(s).
         """
         sep = [self.sep_token_id]
         cls = [self.cls_token_id]

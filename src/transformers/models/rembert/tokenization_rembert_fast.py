@@ -19,10 +19,9 @@ import os
 from shutil import copyfile
 from typing import List, Optional, Tuple
 
-from ...file_utils import is_sentencepiece_available
 from ...tokenization_utils import AddedToken
 from ...tokenization_utils_fast import PreTrainedTokenizerFast
-from ...utils import logging
+from ...utils import is_sentencepiece_available, logging
 
 
 if is_sentencepiece_available():
@@ -51,9 +50,10 @@ SPIECE_UNDERLINE = "▁"
 
 class RemBertTokenizerFast(PreTrainedTokenizerFast):
     """
-    Construct a "fast" RemBert tokenizer (backed by HuggingFace's *tokenizers* library). Based on [Unigram](https://huggingface.co/docs/tokenizers/python/latest/components.html?highlight=unigram#models). This tokenizer
-    inherits from [`PreTrainedTokenizerFast`] which contains most of the main methods. Users should
-    refer to this superclass for more information regarding those methods
+    Construct a "fast" RemBert tokenizer (backed by HuggingFace's *tokenizers* library). Based on
+    [Unigram](https://huggingface.co/docs/tokenizers/python/latest/components.html?highlight=unigram#models). This
+    tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main methods. Users should refer to
+    this superclass for more information regarding those methods
 
     Args:
         vocab_file (`str`):
@@ -139,6 +139,7 @@ class RemBertTokenizerFast(PreTrainedTokenizerFast):
         self.remove_space = remove_space
         self.keep_accents = keep_accents
         self.vocab_file = vocab_file
+        self.can_save_slow_tokenizer = False if not self.vocab_file else True
 
     def build_inputs_with_special_tokens(
         self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
@@ -217,8 +218,7 @@ class RemBertTokenizerFast(PreTrainedTokenizerFast):
                 Optional second list of IDs for sequence pairs.
 
         Returns:
-            `List[int]`: List of [token type IDs](../glossary#token-type-ids) according to the given
-            sequence(s).
+            `List[int]`: List of [token type IDs](../glossary#token-type-ids) according to the given sequence(s).
         """
         sep = [self.sep_token_id]
         cls = [self.cls_token_id]

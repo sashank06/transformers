@@ -15,7 +15,6 @@
 """
 Callbacks to use with the Trainer class and customize the training loop.
 """
-import collections
 import dataclasses
 import json
 from dataclasses import dataclass
@@ -24,7 +23,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 from tqdm.auto import tqdm
 
-from .trainer_utils import IntervalStrategy
+from .trainer_utils import IntervalStrategy, has_length
 from .training_args import TrainingArguments
 from .utils import logging
 
@@ -35,14 +34,14 @@ logger = logging.get_logger(__name__)
 @dataclass
 class TrainerState:
     """
-    A class containing the [`Trainer`] inner state that will be saved along the model and optimizer
-    when checkpointing and passed to the [`TrainerCallback`].
+    A class containing the [`Trainer`] inner state that will be saved along the model and optimizer when checkpointing
+    and passed to the [`TrainerCallback`].
 
     <Tip>
 
-    In all this class, one step is to be understood as one update step. When using gradient accumulation, one
-    update step may require several forward and backward passes: if you use `gradient_accumulation_steps=n`,
-    then one update step requires going through *n* batches.
+    In all this class, one step is to be understood as one update step. When using gradient accumulation, one update
+    step may require several forward and backward passes: if you use `gradient_accumulation_steps=n`, then one update
+    step requires going through *n* batches.
 
     </Tip>
 
@@ -110,8 +109,8 @@ class TrainerState:
 @dataclass
 class TrainerControl:
     """
-    A class that handles the [`Trainer`] control flow. This class is used by the
-    [`TrainerCallback`] to activate some switches in the training loop.
+    A class that handles the [`Trainer`] control flow. This class is used by the [`TrainerCallback`] to activate some
+    switches in the training loop.
 
     Args:
         should_training_stop (`bool`, *optional*, defaults to `False`):
@@ -190,18 +189,17 @@ class TrainerCallback:
 
             Those are only accessible in the event `on_log`.
 
-    The `control` object is the only one that can be changed by the callback, in which case the event that changes
-    it should return the modified version.
+    The `control` object is the only one that can be changed by the callback, in which case the event that changes it
+    should return the modified version.
 
-    The argument `args`, `state` and `control` are positionals for all events, all the others are
-    grouped in `kwargs`. You can unpack the ones you need in the signature of the event using them. As an example,
-    see the code of the simple [`~transformer.PrinterCallback`].
+    The argument `args`, `state` and `control` are positionals for all events, all the others are grouped in `kwargs`.
+    You can unpack the ones you need in the signature of the event using them. As an example, see the code of the
+    simple [`~transformer.PrinterCallback`].
 
     Example:
 
     ```python
     class PrinterCallback(TrainerCallback):
-
         def on_log(self, args, state, control, logs=None, **kwargs):
             _ = logs.pop("total_flos", None)
             if state.is_local_process_zero:
@@ -261,6 +259,12 @@ class TrainerCallback:
     def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
         """
         Event called after an evaluation phase.
+        """
+        pass
+
+    def on_predict(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, metrics, **kwargs):
+        """
+        Event called after a successful prediction.
         """
         pass
 
@@ -374,6 +378,9 @@ class CallbackHandler(TrainerCallback):
         control.should_evaluate = False
         return self.call_event("on_evaluate", args, state, control, metrics=metrics)
 
+    def on_predict(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, metrics):
+        return self.call_event("on_predict", args, state, control, metrics=metrics)
+
     def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
         control.should_save = False
         return self.call_event("on_save", args, state, control)
@@ -407,8 +414,7 @@ class CallbackHandler(TrainerCallback):
 
 class DefaultFlowCallback(TrainerCallback):
     """
-    A [`TrainerCallback`] that handles the default flow of the training loop for logs, evaluation
-    and checkpoints.
+    A [`TrainerCallback`] that handles the default flow of the training loop for logs, evaluation and checkpoints.
     """
 
     def on_step_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
@@ -419,7 +425,11 @@ class DefaultFlowCallback(TrainerCallback):
             control.should_log = True
 
         # Evaluate
-        if args.evaluation_strategy == IntervalStrategy.STEPS and state.global_step % args.eval_steps == 0:
+        if (
+            args.evaluation_strategy == IntervalStrategy.STEPS
+            and state.global_step % args.eval_steps == 0
+            and args.eval_delay <= state.global_step
+        ):
             control.should_evaluate = True
 
         # Save
@@ -442,7 +452,7 @@ class DefaultFlowCallback(TrainerCallback):
             control.should_log = True
 
         # Evaluate
-        if args.evaluation_strategy == IntervalStrategy.EPOCH:
+        if args.evaluation_strategy == IntervalStrategy.EPOCH and args.eval_delay <= state.epoch:
             control.should_evaluate = True
 
         # Save
@@ -472,12 +482,18 @@ class ProgressCallback(TrainerCallback):
             self.current_step = state.global_step
 
     def on_prediction_step(self, args, state, control, eval_dataloader=None, **kwargs):
-        if state.is_local_process_zero and isinstance(eval_dataloader.dataset, collections.abc.Sized):
+        if state.is_local_process_zero and has_length(eval_dataloader):
             if self.prediction_bar is None:
                 self.prediction_bar = tqdm(total=len(eval_dataloader), leave=self.training_bar is None)
             self.prediction_bar.update(1)
 
     def on_evaluate(self, args, state, control, **kwargs):
+        if state.is_local_process_zero:
+            if self.prediction_bar is not None:
+                self.prediction_bar.close()
+            self.prediction_bar = None
+
+    def on_predict(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
             if self.prediction_bar is not None:
                 self.prediction_bar.close()
@@ -514,11 +530,11 @@ class EarlyStoppingCallback(TrainerCallback):
             Use with `metric_for_best_model` to stop training when the specified metric worsens for
             `early_stopping_patience` evaluation calls.
        early_stopping_threshold(`float`, *optional*):
-            Use with TrainingArguments `metric_for_best_model` and `early_stopping_patience` to denote how
-            much the specified metric must improve to satisfy early stopping conditions. `
+            Use with TrainingArguments `metric_for_best_model` and `early_stopping_patience` to denote how much the
+            specified metric must improve to satisfy early stopping conditions. `
 
-    This callback depends on [`TrainingArguments`] argument *load_best_model_at_end* functionality
-    to set best_metric in [`TrainerState`].
+    This callback depends on [`TrainingArguments`] argument *load_best_model_at_end* functionality to set best_metric
+    in [`TrainerState`].
     """
 
     def __init__(self, early_stopping_patience: int = 1, early_stopping_threshold: Optional[float] = 0.0):
@@ -555,7 +571,8 @@ class EarlyStoppingCallback(TrainerCallback):
 
         if metric_value is None:
             logger.warning(
-                f"early stopping required metric_for_best_model, but did not find {metric_to_check} so early stopping is disabled"
+                f"early stopping required metric_for_best_model, but did not find {metric_to_check} so early stopping"
+                " is disabled"
             )
             return
 

@@ -28,7 +28,6 @@ from typing import Callable, Dict, Generator, List, Optional, Text, Tuple, Union
 
 import numpy as np
 
-from ...file_utils import ExplicitEnum, PaddingStrategy, TensorType, add_end_docstrings, is_pandas_available
 from ...tokenization_utils import PreTrainedTokenizer, _is_control, _is_punctuation, _is_whitespace
 from ...tokenization_utils_base import (
     ENCODE_KWARGS_DOCSTRING,
@@ -37,7 +36,7 @@ from ...tokenization_utils_base import (
     PreTokenizedInput,
     TextInput,
 )
-from ...utils import logging
+from ...utils import ExplicitEnum, PaddingStrategy, TensorType, add_end_docstrings, is_pandas_available, logging
 
 
 if is_pandas_available():
@@ -51,35 +50,83 @@ VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
 PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
         # large models
-        "google/tapas-large-finetuned-sqa": "https://huggingface.co/google/tapas-large-finetuned-sqa/resolve/main/vocab.txt",
-        "google/tapas-large-finetuned-wtq": "https://huggingface.co/google/tapas-large-finetuned-wtq/resolve/main/vocab.txt",
-        "google/tapas-large-finetuned-wikisql-supervised": "https://huggingface.co/google/tapas-large-finetuned-wikisql-supervised/resolve/main/vocab.txt",
-        "google/tapas-large-finetuned-tabfact": "https://huggingface.co/google/tapas-large-finetuned-tabfact/resolve/main/vocab.txt",
+        "google/tapas-large-finetuned-sqa": (
+            "https://huggingface.co/google/tapas-large-finetuned-sqa/resolve/main/vocab.txt"
+        ),
+        "google/tapas-large-finetuned-wtq": (
+            "https://huggingface.co/google/tapas-large-finetuned-wtq/resolve/main/vocab.txt"
+        ),
+        "google/tapas-large-finetuned-wikisql-supervised": (
+            "https://huggingface.co/google/tapas-large-finetuned-wikisql-supervised/resolve/main/vocab.txt"
+        ),
+        "google/tapas-large-finetuned-tabfact": (
+            "https://huggingface.co/google/tapas-large-finetuned-tabfact/resolve/main/vocab.txt"
+        ),
         # base models
-        "google/tapas-base-finetuned-sqa": "https://huggingface.co/google/tapas-base-finetuned-sqa/resolve/main/vocab.txt",
-        "google/tapas-base-finetuned-wtq": "https://huggingface.co/google/tapas-base-finetuned-wtq/resolve/main/vocab.txt",
-        "google/tapas-base-finetuned-wikisql-supervised": "https://huggingface.co/google/tapas-base-finetuned-wikisql-supervised/resolve/main/vocab.txt",
-        "google/tapas-base-finetuned-tabfact": "https://huggingface.co/google/tapas-base-finetuned-tabfact/resolve/main/vocab.txt",
+        "google/tapas-base-finetuned-sqa": (
+            "https://huggingface.co/google/tapas-base-finetuned-sqa/resolve/main/vocab.txt"
+        ),
+        "google/tapas-base-finetuned-wtq": (
+            "https://huggingface.co/google/tapas-base-finetuned-wtq/resolve/main/vocab.txt"
+        ),
+        "google/tapas-base-finetuned-wikisql-supervised": (
+            "https://huggingface.co/google/tapas-base-finetuned-wikisql-supervised/resolve/main/vocab.txt"
+        ),
+        "google/tapas-base-finetuned-tabfact": (
+            "https://huggingface.co/google/tapas-base-finetuned-tabfact/resolve/main/vocab.txt"
+        ),
         # medium models
-        "google/tapas-medium-finetuned-sqa": "https://huggingface.co/google/tapas-medium-finetuned-sqa/resolve/main/vocab.txt",
-        "google/tapas-medium-finetuned-wtq": "https://huggingface.co/google/tapas-medium-finetuned-wtq/resolve/main/vocab.txt",
-        "google/tapas-medium-finetuned-wikisql-supervised": "https://huggingface.co/google/tapas-medium-finetuned-wikisql-supervised/resolve/main/vocab.txt",
-        "google/tapas-medium-finetuned-tabfact": "https://huggingface.co/google/tapas-medium-finetuned-tabfact/resolve/main/vocab.txt",
+        "google/tapas-medium-finetuned-sqa": (
+            "https://huggingface.co/google/tapas-medium-finetuned-sqa/resolve/main/vocab.txt"
+        ),
+        "google/tapas-medium-finetuned-wtq": (
+            "https://huggingface.co/google/tapas-medium-finetuned-wtq/resolve/main/vocab.txt"
+        ),
+        "google/tapas-medium-finetuned-wikisql-supervised": (
+            "https://huggingface.co/google/tapas-medium-finetuned-wikisql-supervised/resolve/main/vocab.txt"
+        ),
+        "google/tapas-medium-finetuned-tabfact": (
+            "https://huggingface.co/google/tapas-medium-finetuned-tabfact/resolve/main/vocab.txt"
+        ),
         # small models
-        "google/tapas-small-finetuned-sqa": "https://huggingface.co/google/tapas-small-finetuned-sqa/resolve/main/vocab.txt",
-        "google/tapas-small-finetuned-wtq": "https://huggingface.co/google/tapas-small-finetuned-wtq/resolve/main/vocab.txt",
-        "google/tapas-small-finetuned-wikisql-supervised": "https://huggingface.co/google/tapas-small-finetuned-wikisql-supervised/resolve/main/vocab.txt",
-        "google/tapas-small-finetuned-tabfact": "https://huggingface.co/google/tapas-small-finetuned-tabfact/resolve/main/vocab.txt",
+        "google/tapas-small-finetuned-sqa": (
+            "https://huggingface.co/google/tapas-small-finetuned-sqa/resolve/main/vocab.txt"
+        ),
+        "google/tapas-small-finetuned-wtq": (
+            "https://huggingface.co/google/tapas-small-finetuned-wtq/resolve/main/vocab.txt"
+        ),
+        "google/tapas-small-finetuned-wikisql-supervised": (
+            "https://huggingface.co/google/tapas-small-finetuned-wikisql-supervised/resolve/main/vocab.txt"
+        ),
+        "google/tapas-small-finetuned-tabfact": (
+            "https://huggingface.co/google/tapas-small-finetuned-tabfact/resolve/main/vocab.txt"
+        ),
         # tiny models
-        "google/tapas-tiny-finetuned-sqa": "https://huggingface.co/google/tapas-tiny-finetuned-sqa/resolve/main/vocab.txt",
-        "google/tapas-tiny-finetuned-wtq": "https://huggingface.co/google/tapas-tiny-finetuned-wtq/resolve/main/vocab.txt",
-        "google/tapas-tiny-finetuned-wikisql-supervised": "https://huggingface.co/google/tapas-tiny-finetuned-wikisql-supervised/resolve/main/vocab.txt",
-        "google/tapas-tiny-finetuned-tabfact": "https://huggingface.co/google/tapas-tiny-finetuned-tabfact/resolve/main/vocab.txt",
+        "google/tapas-tiny-finetuned-sqa": (
+            "https://huggingface.co/google/tapas-tiny-finetuned-sqa/resolve/main/vocab.txt"
+        ),
+        "google/tapas-tiny-finetuned-wtq": (
+            "https://huggingface.co/google/tapas-tiny-finetuned-wtq/resolve/main/vocab.txt"
+        ),
+        "google/tapas-tiny-finetuned-wikisql-supervised": (
+            "https://huggingface.co/google/tapas-tiny-finetuned-wikisql-supervised/resolve/main/vocab.txt"
+        ),
+        "google/tapas-tiny-finetuned-tabfact": (
+            "https://huggingface.co/google/tapas-tiny-finetuned-tabfact/resolve/main/vocab.txt"
+        ),
         # mini models
-        "google/tapas-mini-finetuned-sqa": "https://huggingface.co/google/tapas-mini-finetuned-sqa/resolve/main/vocab.txt",
-        "google/tapas-mini-finetuned-wtq": "https://huggingface.co/google/tapas-mini-finetuned-wtq/resolve/main/vocab.txt",
-        "google/tapas-mini-finetuned-wikisql-supervised": "https://huggingface.co/google/tapas-mini-finetuned-wikisql-supervised/resolve/main/vocab.txt",
-        "google/tapas-mini-finetuned-tabfact": "https://huggingface.co/google/tapas-mini-finetuned-tabfact/resolve/main/vocab.txt",
+        "google/tapas-mini-finetuned-sqa": (
+            "https://huggingface.co/google/tapas-mini-finetuned-sqa/resolve/main/vocab.txt"
+        ),
+        "google/tapas-mini-finetuned-wtq": (
+            "https://huggingface.co/google/tapas-mini-finetuned-wtq/resolve/main/vocab.txt"
+        ),
+        "google/tapas-mini-finetuned-wikisql-supervised": (
+            "https://huggingface.co/google/tapas-mini-finetuned-wikisql-supervised/resolve/main/vocab.txt"
+        ),
+        "google/tapas-mini-finetuned-tabfact": (
+            "https://huggingface.co/google/tapas-mini-finetuned-tabfact/resolve/main/vocab.txt"
+        ),
     }
 }
 
@@ -89,8 +136,7 @@ PRETRAINED_INIT_CONFIGURATION = {name: {"do_lower_case": True} for name in PRETR
 
 class TapasTruncationStrategy(ExplicitEnum):
     """
-    Possible values for the `truncation` argument in [`~TapasTokenizer.__call__`]. Useful for
-    tab-completion in an IDE.
+    Possible values for the `truncation` argument in [`~TapasTokenizer.__call__`]. Useful for tab-completion in an IDE.
     """
 
     DROP_ROWS_TO_FIT = "drop_rows_to_fit"
@@ -148,29 +194,29 @@ def whitespace_tokenize(text):
 TAPAS_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING = r"""
             add_special_tokens (`bool`, *optional*, defaults to `True`):
                 Whether or not to encode the sequences with the special tokens relative to their model.
-            padding (`bool`, `str` or [`~file_utils.PaddingStrategy`], *optional*, defaults to `False`):
+            padding (`bool`, `str` or [`~utils.PaddingStrategy`], *optional*, defaults to `False`):
                 Activates and controls padding. Accepts the following values:
 
-                - `True` or `'longest'`: Pad to the longest sequence in the batch (or no padding if only a
-                  single sequence if provided).
-                - `'max_length'`: Pad to a maximum length specified with the argument `max_length` or to the
-                  maximum acceptable input length for the model if that argument is not provided.
-                - `False` or `'do_not_pad'` (default): No padding (i.e., can output a batch with sequences of
-                  different lengths).
+                - `True` or `'longest'`: Pad to the longest sequence in the batch (or no padding if only a single
+                  sequence if provided).
+                - `'max_length'`: Pad to a maximum length specified with the argument `max_length` or to the maximum
+                  acceptable input length for the model if that argument is not provided.
+                - `False` or `'do_not_pad'` (default): No padding (i.e., can output a batch with sequences of different
+                  lengths).
             truncation (`bool`, `str` or [`TapasTruncationStrategy`], *optional*, defaults to `False`):
                 Activates and controls truncation. Accepts the following values:
 
-                - `True` or `'drop_rows_to_fit'`: Truncate to a maximum length specified with the argument
-                  `max_length` or to the maximum acceptable input length for the model if that argument is not
-                  provided. This will truncate row by row, removing rows from the table.
-                - `False` or `'do_not_truncate'` (default): No truncation (i.e., can output batch with
-                  sequence lengths greater than the model maximum admissible input size).
+                - `True` or `'drop_rows_to_fit'`: Truncate to a maximum length specified with the argument `max_length`
+                  or to the maximum acceptable input length for the model if that argument is not provided. This will
+                  truncate row by row, removing rows from the table.
+                - `False` or `'do_not_truncate'` (default): No truncation (i.e., can output batch with sequence lengths
+                  greater than the model maximum admissible input size).
             max_length (`int`, *optional*):
                 Controls the maximum length to use by one of the truncation/padding parameters.
 
-                If left unset or set to `None`, this will use the predefined model maximum length if a maximum
-                length is required by one of the truncation/padding parameters. If the model has no specific maximum
-                input length (like XLNet) truncation/padding to a maximum length will be deactivated.
+                If left unset or set to `None`, this will use the predefined model maximum length if a maximum length
+                is required by one of the truncation/padding parameters. If the model has no specific maximum input
+                length (like XLNet) truncation/padding to a maximum length will be deactivated.
             is_split_into_words (`bool`, *optional*, defaults to `False`):
                 Whether or not the input is already pre-tokenized (e.g., split into words). If set to `True`, the
                 tokenizer assumes the input is already split into words (for instance, by splitting it on whitespace)
@@ -178,7 +224,7 @@ TAPAS_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING = r"""
             pad_to_multiple_of (`int`, *optional*):
                 If set will pad the sequence to a multiple of the provided value. This is especially useful to enable
                 the use of Tensor Cores on NVIDIA hardware with compute capability >= 7.5 (Volta).
-            return_tensors (`str` or [`~file_utils.TensorType`], *optional*):
+            return_tensors (`str` or [`~utils.TensorType`], *optional*):
                 If set, will return tensors instead of list of python integers. Acceptable values are:
 
                 - `'tf'`: Return TensorFlow `tf.constant` objects.
@@ -192,11 +238,10 @@ class TapasTokenizer(PreTrainedTokenizer):
     Construct a TAPAS tokenizer. Based on WordPiece. Flattens a table and one or more related sentences to be used by
     TAPAS models.
 
-    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods.
-    Users should refer to this superclass for more information regarding those methods.
-    [`TapasTokenizer`] creates several token type ids to encode tabular structure. To be more
-    precise, it adds 7 token type ids, in the following order: `segment_ids`, `column_ids`, `row_ids`,
-    `prev_labels`, `column_ranks`, `inv_column_ranks` and `numeric_relations`:
+    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
+    this superclass for more information regarding those methods. [`TapasTokenizer`] creates several token type ids to
+    encode tabular structure. To be more precise, it adds 7 token type ids, in the following order: `segment_ids`,
+    `column_ids`, `row_ids`, `prev_labels`, `column_ranks`, `inv_column_ranks` and `numeric_relations`:
 
     - segment_ids: indicate whether a token belongs to the question (0) or the table (1). 0 for special tokens and
       padding.
@@ -215,8 +260,8 @@ class TapasTokenizer(PreTrainedTokenizer):
     - numeric_relations: indicate numeric relations between the question and the tokens of the table. 0 for all
       question tokens, special tokens and padding.
 
-    [`TapasTokenizer`] runs end-to-end tokenization on a table and associated sentences: punctuation
-    splitting and wordpiece.
+    [`TapasTokenizer`] runs end-to-end tokenization on a table and associated sentences: punctuation splitting and
+    wordpiece.
 
     Args:
         vocab_file (`str`):
@@ -248,7 +293,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         tokenize_chinese_chars (`bool`, *optional*, defaults to `True`):
             Whether or not to tokenize Chinese characters. This should likely be deactivated for Japanese (see this
             [issue](https://github.com/huggingface/transformers/issues/328)).
-        strip_accents: (`bool`, *optional*):
+        strip_accents (`bool`, *optional*):
             Whether or not to strip all accents. If this option is not specified, then it will be determined by the
             value for `lowercase` (as in the original BERT).
         cell_trim_length (`int`, *optional*, defaults to -1):
@@ -332,8 +377,8 @@ class TapasTokenizer(PreTrainedTokenizer):
 
         if not os.path.isfile(vocab_file):
             raise ValueError(
-                f"Can't find a vocabulary file at path '{vocab_file}'. To load the vocabulary from a Google pretrained "
-                "model use `tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`"
+                f"Can't find a vocabulary file at path '{vocab_file}'. To load the vocabulary from a Google pretrained"
+                " model use `tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`"
             )
         self.vocab = load_vocab(vocab_file)
         self.ids_to_tokens = collections.OrderedDict([(ids, tok) for tok, ids in self.vocab.items()])
@@ -597,7 +642,8 @@ class TapasTokenizer(PreTrainedTokenizer):
 
         if not valid_query:
             raise ValueError(
-                "queries input must of type `str` (single example), `List[str]` (batch or single pretokenized example). "
+                "queries input must of type `str` (single example), `List[str]` (batch or single pretokenized"
+                " example). "
             )
         is_batched = isinstance(queries, (list, tuple))
 
@@ -1232,7 +1278,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         if max_length is None and len(encoded_inputs["input_ids"]) > self.model_max_length and verbose:
             if not self.deprecation_warnings.get("sequence-length-is-longer-than-the-specified-maximum", False):
                 logger.warning(
-                    f"Token indices sequence length is longer than the specified maximum sequence length "
+                    "Token indices sequence length is longer than the specified maximum sequence length "
                     f"for this model ({len(encoded_inputs['input_ids'])} > {self.model_max_length}). Running this "
                     "sequence through the model will result in indexing errors."
                 )
@@ -1285,8 +1331,8 @@ class TapasTokenizer(PreTrainedTokenizer):
                 available strategy is the `"drop_rows_to_fit"` strategy.
 
         Returns:
-            `Tuple(int, int)`: tuple containing the number of rows after truncation, and the number of tokens
-            available for each table element.
+            `Tuple(int, int)`: tuple containing the number of rows after truncation, and the number of tokens available
+            for each table element.
         """
         if not isinstance(truncation_strategy, TapasTruncationStrategy):
             truncation_strategy = TapasTruncationStrategy(truncation_strategy)
@@ -1370,8 +1416,8 @@ class TapasTokenizer(PreTrainedTokenizer):
 
         Args:
             question_tokens (`List[String]`):
-                List of question tokens. Returns: `int`: the number of tokens left for the table, given the model
-                max length.
+                List of question tokens. Returns: `int`: the number of tokens left for the table, given the model max
+                length.
         """
         return (max_length if max_length is not None else self.model_max_length) - self._question_encoding_cost(
             question_tokens
@@ -1791,7 +1837,8 @@ class TapasTokenizer(PreTrainedTokenizer):
         Pad encoded inputs (on left/right and up to predefined length or max length in the batch)
 
         Args:
-            encoded_inputs: Dictionary of tokenized inputs (`List[int]`) or batch of tokenized inputs (`List[List[int]]`).
+            encoded_inputs:
+                Dictionary of tokenized inputs (`List[int]`) or batch of tokenized inputs (`List[List[int]]`).
             max_length: maximum length of the returned list and optionally padding length (see below).
                 Will truncate by taking into account the special tokens.
             padding_strategy: PaddingStrategy to use for padding.
@@ -1806,7 +1853,8 @@ class TapasTokenizer(PreTrainedTokenizer):
             pad_to_multiple_of: (optional) Integer if set will pad the sequence to a multiple of the provided value.
                 This is especially useful to enable the use of Tensor Core on NVIDIA hardware with compute capability
                 >= 7.5 (Volta).
-            return_attention_mask: (optional) Set to False to avoid returning attention mask (default: set to model specifics)
+            return_attention_mask:
+                (optional) Set to False to avoid returning attention mask (default: set to model specifics)
         """
         # Load from model defaults
         if return_attention_mask is None:
@@ -1890,15 +1938,15 @@ class TapasTokenizer(PreTrainedTokenizer):
 
     def convert_logits_to_predictions(self, data, logits, logits_agg=None, cell_classification_threshold=0.5):
         """
-        Converts logits of [`TapasForQuestionAnswering`] to actual predicted answer coordinates and
-        optional aggregation indices.
+        Converts logits of [`TapasForQuestionAnswering`] to actual predicted answer coordinates and optional
+        aggregation indices.
 
-        The original implementation, on which this function is based, can be found [here](https://github.com/google-research/tapas/blob/4908213eb4df7aa988573350278b44c4dbe3f71b/tapas/experiments/prediction_utils.py#L288).
+        The original implementation, on which this function is based, can be found
+        [here](https://github.com/google-research/tapas/blob/4908213eb4df7aa988573350278b44c4dbe3f71b/tapas/experiments/prediction_utils.py#L288).
 
         Args:
             data (`dict`):
-                Dictionary mapping features to actual values. Should be created using
-                [`TapasTokenizer`].
+                Dictionary mapping features to actual values. Should be created using [`TapasTokenizer`].
             logits (`torch.Tensor` or `tf.Tensor` of shape `(batch_size, sequence_length)`):
                 Tensor containing the logits at the token level.
             logits_agg (`torch.Tensor` or `tf.Tensor` of shape `(batch_size, num_aggregation_labels)`, *optional*):
@@ -1910,10 +1958,9 @@ class TapasTokenizer(PreTrainedTokenizer):
         Returns:
             `tuple` comprising various elements depending on the inputs:
 
-            - predicted_answer_coordinates (`List[List[[tuple]]` of length `batch_size`): Predicted answer
-              coordinates as a list of lists of tuples. Each element in the list contains the predicted answer
-              coordinates of a single example in the batch, as a list of tuples. Each tuple is a cell, i.e. (row index,
-              column index).
+            - predicted_answer_coordinates (`List[List[[tuple]]` of length `batch_size`): Predicted answer coordinates
+              as a list of lists of tuples. Each element in the list contains the predicted answer coordinates of a
+              single example in the batch, as a list of tuples. Each tuple is a cell, i.e. (row index, column index).
             - predicted_aggregation_indices (`List[int]`of length `batch_size`, *optional*, returned when
               `logits_aggregation` is provided): Predicted aggregation operator indices of the aggregation head.
         """
@@ -2004,8 +2051,9 @@ class BasicTokenizer(object):
         tokenize_chinese_chars (`bool`, *optional*, defaults to `True`):
             Whether or not to tokenize Chinese characters.
 
-            This should likely be deactivated for Japanese (see this [issue](https://github.com/huggingface/transformers/issues/328)).
-        strip_accents: (`bool`, *optional*):
+            This should likely be deactivated for Japanese (see this
+            [issue](https://github.com/huggingface/transformers/issues/328)).
+        strip_accents (`bool`, *optional*):
             Whether or not to strip all accents. If this option is not specified, then it will be determined by the
             value for `lowercase` (as in the original BERT).
     """
@@ -2024,7 +2072,7 @@ class BasicTokenizer(object):
         WordPieceTokenizer.
 
         Args:
-            never_split (`LIst[str]`, *optional*)
+            never_split (`List[str]`, *optional*)
                 Kept for backward compatibility purposes. Now implemented directly at the base class level (see
                 [`PreTrainedTokenizer.tokenize`]) List of token not to split.
         """

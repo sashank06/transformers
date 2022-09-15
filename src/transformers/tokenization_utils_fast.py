@@ -16,18 +16,19 @@
  Tokenization classes for fast tokenizers (provided by HuggingFace's tokenizers library). For slow (python) tokenizers
  see tokenization_utils.py
 """
+import copy
 import json
 import os
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import tokenizers.pre_tokenizers as pre_tokenizers_fast
 from tokenizers import Encoding as EncodingFast
 from tokenizers import Tokenizer as TokenizerFast
 from tokenizers.decoders import Decoder as DecoderFast
 from tokenizers.trainers import BpeTrainer, UnigramTrainer, WordLevelTrainer, WordPieceTrainer
 
 from .convert_slow_tokenizer import convert_slow_tokenizer
-from .file_utils import PaddingStrategy, add_end_docstrings
 from .tokenization_utils import PreTrainedTokenizer
 from .tokenization_utils_base import (
     INIT_TOKENIZER_DOCSTRING,
@@ -41,11 +42,10 @@ from .tokenization_utils_base import (
     TextInputPair,
     TruncationStrategy,
 )
-from .utils import logging
+from .utils import PaddingStrategy, add_end_docstrings, logging
 
 
 logger = logging.get_logger(__name__)
-
 
 # Fast tokenizers (provided by HuggingFace tokenizer's library) can be saved in a single file
 TOKENIZER_FILE = "tokenizer.json"
@@ -57,11 +57,11 @@ ADDED_TOKENS_FILE = "added_tokens.json"
 
 INIT_TOKENIZER_DOCSTRING += """
         tokenizer_object ([`tokenizers.Tokenizer`]):
-            A [`tokenizers.Tokenizer`] object from 🤗 tokenizers to instantiate from. See [Using tokenizers
-            from 🤗 tokenizers](../fast_tokenizers) for more information.
+            A [`tokenizers.Tokenizer`] object from 🤗 tokenizers to instantiate from. See [Using tokenizers from 🤗
+            tokenizers](../fast_tokenizers) for more information.
         tokenizer_file ([`str`]):
-            A path to a local JSON file representing a previously serialized [`tokenizers.Tokenizer`] object from
-            🤗 tokenizers.
+            A path to a local JSON file representing a previously serialized [`tokenizers.Tokenizer`] object from 🤗
+            tokenizers.
 """
 
 MODEL_TO_TRAINER_MAPPING = {
@@ -70,6 +70,8 @@ MODEL_TO_TRAINER_MAPPING = {
     "WordLevel": WordLevelTrainer,
     "WordPiece": WordPieceTrainer,
 }
+
+VOCAB_FILES_NAMES = {"tokenizer_file": TOKENIZER_FILE}
 
 
 @add_end_docstrings(INIT_TOKENIZER_DOCSTRING)
@@ -86,6 +88,7 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
     specific vocabulary augmentation methods of the various underlying dictionary structures (BPE, sentencepiece...).
     """
 
+    vocab_files_names = VOCAB_FILES_NAMES
     slow_tokenizer_class: PreTrainedTokenizer = None
     can_save_slow_tokenizer: bool = True
 
@@ -102,7 +105,7 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
             )
 
         if tokenizer_object is not None:
-            fast_tokenizer = tokenizer_object
+            fast_tokenizer = copy.deepcopy(tokenizer_object)
         elif fast_tokenizer_file is not None and not from_slow:
             # We have a serialization from tokenizers which let us directly build the backend
             fast_tokenizer = TokenizerFast.from_file(fast_tokenizer_file)
@@ -180,7 +183,7 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
         """
         `tokenizers.decoders.Decoder`: The Rust decoder for this tokenizer.
         """
-        return self._tokenizer._tokenizer.decoder
+        return self._tokenizer.decoder
 
     def _convert_encoding(
         self,
@@ -272,8 +275,8 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
 
         <Tip>
 
-        This encodes a dummy input and checks the number of added tokens, and is therefore not efficient. Do not
-        put this inside your training loop.
+        This encodes a dummy input and checks the number of added tokens, and is therefore not efficient. Do not put
+        this inside your training loop.
 
         </Tip>
 
@@ -333,7 +336,7 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
         section.
 
         Args:
-            padding_strategy ([`~file_utils.PaddingStrategy`]):
+            padding_strategy ([`~utils.PaddingStrategy`]):
                 The kind of padding that will be applied to the input
             truncation_strategy ([`~tokenization_utils_base.TruncationStrategy`]):
                 The kind of truncation that will be applied to the input
@@ -352,8 +355,23 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
             if _truncation is not None:
                 self._tokenizer.no_truncation()
         else:
-            target = {"max_length": max_length, "stride": stride, "strategy": truncation_strategy.value}
-            if _truncation != target:
+            target = {
+                "max_length": max_length,
+                "stride": stride,
+                "strategy": truncation_strategy.value,
+                "direction": self.truncation_side,
+            }
+
+            # _truncation might contain more keys that the target `transformers`
+            # supports. Use only the target keys to trigger `enable_truncation`.
+            # This should enable this code to works on various `tokenizers`
+            # targets.
+            if _truncation is None:
+                current = None
+            else:
+                current = {k: _truncation.get(k, None) for k in target}
+
+            if current != target:
                 self._tokenizer.enable_truncation(**target)
 
         if padding_strategy == PaddingStrategy.DO_NOT_PAD:
@@ -551,8 +569,8 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
 
         if self.slow_tokenizer_class is None and legacy_format is True:
             raise ValueError(
-                "Your tokenizer does not have a legacy version defined and therefore cannot register this version. You "
-                "might consider leaving the legacy_format at `None` or setting it to `False`."
+                "Your tokenizer does not have a legacy version defined and therefore cannot register this version. You"
+                " might consider leaving the legacy_format at `None` or setting it to `False`."
             )
 
         save_slow = (
@@ -569,7 +587,7 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
             added_vocab = self.get_added_vocab()
             if added_vocab:
                 with open(added_tokens_file, "w", encoding="utf-8") as f:
-                    out_str = json.dumps(added_vocab, ensure_ascii=False)
+                    out_str = json.dumps(added_vocab, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
                     f.write(out_str)
 
             vocab_files = self.save_vocabulary(save_directory, filename_prefix=filename_prefix)
@@ -585,7 +603,13 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
         return file_names
 
     def train_new_from_iterator(
-        self, text_iterator, vocab_size, new_special_tokens=None, special_tokens_map=None, **kwargs
+        self,
+        text_iterator,
+        vocab_size,
+        length=None,
+        new_special_tokens=None,
+        special_tokens_map=None,
+        **kwargs,
     ):
         """
         Trains a tokenizer on a new corpus with the same defaults (in terms of special tokens or tokenization pipeline)
@@ -597,6 +621,8 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
                 if you have everything in memory.
             vocab_size (`int`):
                 The size of the vocabulary you want for your tokenizer.
+            length (`int`, *optional*):
+                The total number of sequences in the iterator. This is used to provide meaningful progress tracking
             new_special_tokens (list of `str` or `AddedToken`, *optional*):
                 A list of new special tokens to add to the tokenizer you are training.
             special_tokens_map (`Dict[str, str]`, *optional*):
@@ -606,8 +632,8 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
                 Additional keyword arguments passed along to the trainer from the 🤗 Tokenizers library.
 
         Returns:
-            [`PreTrainedTokenizerFast`]: A new tokenizer of the same type as the original one,
-            trained on `text_iterator`.
+            [`PreTrainedTokenizerFast`]: A new tokenizer of the same type as the original one, trained on
+            `text_iterator`.
 
         """
         tokenizer_json = json.loads(self._tokenizer.to_str())
@@ -675,10 +701,12 @@ class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
             kwargs["end_of_word_suffix"] = tokenizer_json["model"]["end_of_word_suffix"]
         if tokenizer_json["model"]["type"] == "Unigram" and unk_token is not None:
             kwargs["unk_token"] = unk_token
+        if tokenizer_json["pre_tokenizer"]["type"] == "ByteLevel":
+            kwargs["initial_alphabet"] = pre_tokenizers_fast.ByteLevel.alphabet()
 
         trainer_class = MODEL_TO_TRAINER_MAPPING[tokenizer_json["model"]["type"]]
         trainer = trainer_class(vocab_size=vocab_size, special_tokens=special_tokens, **kwargs)
-        tokenizer.train_from_iterator(text_iterator, trainer=trainer)
+        tokenizer.train_from_iterator(text_iterator, length=length, trainer=trainer)
 
         if post_processor is not None:
             trained_tokenizer_json = json.loads(tokenizer.to_str())

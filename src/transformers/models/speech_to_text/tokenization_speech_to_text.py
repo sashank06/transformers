@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tokenization classes for Speech2Text."""
-
 import json
+import os
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -36,10 +36,14 @@ VOCAB_FILES_NAMES = {
 
 PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
-        "facebook/s2t-small-librispeech-asr": "https://huggingface.co/facebook/s2t-small-librispeech-asr/resolve/main/vocab.json",
+        "facebook/s2t-small-librispeech-asr": (
+            "https://huggingface.co/facebook/s2t-small-librispeech-asr/resolve/main/vocab.json"
+        ),
     },
     "spm_file": {
-        "facebook/s2t-small-librispeech-asr": "https://huggingface.co/facebook/s2t-small-librispeech-asr/resolve/main/sentencepiece.bpe.model"
+        "facebook/s2t-small-librispeech-asr": (
+            "https://huggingface.co/facebook/s2t-small-librispeech-asr/resolve/main/sentencepiece.bpe.model"
+        )
     },
 }
 
@@ -56,8 +60,8 @@ class Speech2TextTokenizer(PreTrainedTokenizer):
     """
     Construct an Speech2Text tokenizer.
 
-    This tokenizer inherits from [`PreTrainedTokenizer`] which contains some of the main methods.
-    Users should refer to the superclass for more information regarding such methods.
+    This tokenizer inherits from [`PreTrainedTokenizer`] which contains some of the main methods. Users should refer to
+    the superclass for more information regarding such methods.
 
     Args:
         vocab_file (`str`):
@@ -80,7 +84,9 @@ class Speech2TextTokenizer(PreTrainedTokenizer):
         tgt_lang (`str`, *optional*):
             A string representing the target language.
         sp_model_kwargs (`dict`, *optional*):
-            Will be passed to the `SentencePieceProcessor.__init__()` method. The [Python wrapper for SentencePiece](https://github.com/google/sentencepiece/tree/master/python) can be used, among other things, to set:
+            Will be passed to the `SentencePieceProcessor.__init__()` method. The [Python wrapper for
+            SentencePiece](https://github.com/google/sentencepiece/tree/master/python) can be used, among other things,
+            to set:
 
             - `enable_sampling`: Enable subword regularization.
             - `nbest_size`: Sampling parameters for unigram. Invalid for BPE-Dropout.
@@ -258,8 +264,12 @@ class Speech2TextTokenizer(PreTrainedTokenizer):
 
         save_json(self.encoder, vocab_save_path)
 
-        if not spm_save_path.exists():
+        if os.path.abspath(self.spm_file) != os.path.abspath(spm_save_path) and os.path.isfile(self.spm_file):
             copyfile(self.spm_file, spm_save_path)
+        elif not os.path.isfile(self.spm_file):
+            with open(spm_save_path, "wb") as fi:
+                content_spiece_model = self.sp_model.serialized_model_proto()
+                fi.write(content_spiece_model)
 
         return (str(vocab_save_path), str(spm_save_path))
 

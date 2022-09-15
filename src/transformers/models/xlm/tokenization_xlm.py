@@ -22,8 +22,6 @@ import sys
 import unicodedata
 from typing import List, Optional, Tuple
 
-import sacremoses as sm
-
 from ...tokenization_utils import PreTrainedTokenizer
 from ...utils import logging
 
@@ -534,14 +532,14 @@ class XLMTokenizer(PreTrainedTokenizer):
     - Moses preprocessing and tokenization for most supported languages.
     - Language specific tokenization for Chinese (Jieba), Japanese (KyTea) and Thai (PyThaiNLP).
     - Optionally lowercases and normalizes all inputs text.
-    - The arguments `special_tokens` and the function `set_special_tokens`, can be used to add additional symbols
-      (like "__classify__") to a vocabulary.
-    - The `lang2id` attribute maps the languages supported by the model with their IDs if provided (automatically
-      set for pretrained vocabularies).
+    - The arguments `special_tokens` and the function `set_special_tokens`, can be used to add additional symbols (like
+      "__classify__") to a vocabulary.
+    - The `lang2id` attribute maps the languages supported by the model with their IDs if provided (automatically set
+      for pretrained vocabularies).
     - The `id2lang` attributes does reverse mapping if provided (automatically set for pretrained vocabularies).
 
-    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods.
-    Users should refer to this superclass for more information regarding those methods.
+    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
+    this superclass for more information regarding those methods.
 
     Args:
         vocab_file (`str`):
@@ -629,6 +627,16 @@ class XLMTokenizer(PreTrainedTokenizer):
             **kwargs,
         )
 
+        try:
+            import sacremoses
+        except ImportError:
+            raise ImportError(
+                "You need to install sacremoses to use XLMTokenizer. "
+                "See https://pypi.org/project/sacremoses/ for installation."
+            )
+
+        self.sm = sacremoses
+
         # cache of sm.MosesPunctNormalizer instance
         self.cache_moses_punct_normalizer = dict()
         # cache of sm.MosesTokenizer instance
@@ -659,7 +667,7 @@ class XLMTokenizer(PreTrainedTokenizer):
 
     def moses_punct_norm(self, text, lang):
         if lang not in self.cache_moses_punct_normalizer:
-            punct_normalizer = sm.MosesPunctNormalizer(lang=lang)
+            punct_normalizer = self.sm.MosesPunctNormalizer(lang=lang)
             self.cache_moses_punct_normalizer[lang] = punct_normalizer
         else:
             punct_normalizer = self.cache_moses_punct_normalizer[lang]
@@ -667,7 +675,7 @@ class XLMTokenizer(PreTrainedTokenizer):
 
     def moses_tokenize(self, text, lang):
         if lang not in self.cache_moses_tokenizer:
-            moses_tokenizer = sm.MosesTokenizer(lang=lang)
+            moses_tokenizer = self.sm.MosesTokenizer(lang=lang)
             self.cache_moses_tokenizer[lang] = moses_tokenizer
         else:
             moses_tokenizer = self.cache_moses_tokenizer[lang]
@@ -689,7 +697,8 @@ class XLMTokenizer(PreTrainedTokenizer):
                 )
             except (AttributeError, ImportError):
                 logger.error(
-                    "Make sure you install KyTea (https://github.com/neubig/kytea) and it's python wrapper (https://github.com/chezou/Mykytea-python) with the following steps"
+                    "Make sure you install KyTea (https://github.com/neubig/kytea) and it's python wrapper"
+                    " (https://github.com/chezou/Mykytea-python) with the following steps"
                 )
                 logger.error("1. git clone git@github.com:neubig/kytea.git && cd kytea")
                 logger.error("2. autoreconf -i")
@@ -767,11 +776,8 @@ class XLMTokenizer(PreTrainedTokenizer):
 
             ::
 
-                git clone git@github.com:neubig/kytea.git && cd kytea
-                autoreconf -i
-                ./configure --prefix=$HOME/local
-                make && make install
-                pip install kytea
+                git clone git@github.com:neubig/kytea.git && cd kytea autoreconf -i ./configure --prefix=$HOME/local
+                make && make install pip install kytea
 
             - [jieba](https://github.com/fxsjy/jieba): Chinese tokenizer (*)
             - Install with `pip install jieba`
@@ -785,7 +791,6 @@ class XLMTokenizer(PreTrainedTokenizer):
         externally, and set `bypass_tokenizer=True` to bypass the tokenizer.
 
         Args:
-
             - lang: ISO language code (default = 'en') (string). Languages should belong of the model supported
               languages. However, we don't enforce it.
             - bypass_tokenizer: Allow users to preprocess and tokenize the sentences externally (default = False)
@@ -796,7 +801,8 @@ class XLMTokenizer(PreTrainedTokenizer):
         """
         if lang and self.lang2id and lang not in self.lang2id:
             logger.error(
-                "Supplied language code not found in lang2id mapping. Please check that your language is supported by the loaded pretrained model."
+                "Supplied language code not found in lang2id mapping. Please check that your language is supported by"
+                " the loaded pretrained model."
             )
         if bypass_tokenizer:
             text = text.split()
@@ -938,8 +944,7 @@ class XLMTokenizer(PreTrainedTokenizer):
                 Optional second list of IDs for sequence pairs.
 
         Returns:
-            `List[int]`: List of [token type IDs](../glossary#token-type-ids) according to the given
-            sequence(s).
+            `List[int]`: List of [token type IDs](../glossary#token-type-ids) according to the given sequence(s).
         """
         sep = [self.sep_token_id]
         cls = [self.cls_token_id]
@@ -959,7 +964,7 @@ class XLMTokenizer(PreTrainedTokenizer):
         )
 
         with open(vocab_file, "w", encoding="utf-8") as f:
-            f.write(json.dumps(self.encoder, ensure_ascii=False))
+            f.write(json.dumps(self.encoder, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
 
         index = 0
         with open(merge_file, "w", encoding="utf-8") as writer:
@@ -974,3 +979,21 @@ class XLMTokenizer(PreTrainedTokenizer):
                 index += 1
 
         return vocab_file, merge_file
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["sm"] = None
+        return state
+
+    def __setstate__(self, d):
+        self.__dict__ = d
+
+        try:
+            import sacremoses
+        except ImportError:
+            raise ImportError(
+                "You need to install sacremoses to use XLMTokenizer. "
+                "See https://pypi.org/project/sacremoses/ for installation."
+            )
+
+        self.sm = sacremoses

@@ -22,6 +22,7 @@ import math
 import os
 import sys
 import warnings
+from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from logging import StreamHandler
@@ -29,30 +30,19 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 import numpy as np
 import torch
-from packaging import version
+import torch.distributed as dist
 from torch import nn
 from torch.utils.data import Dataset, IterableDataset, RandomSampler, Sampler
 from torch.utils.data.distributed import DistributedSampler
 
-from .file_utils import (
-    is_sagemaker_dp_enabled,
-    is_sagemaker_mp_enabled,
-    is_torch_tpu_available,
-    is_training_run_on_sagemaker,
-)
 from .tokenization_utils_base import BatchEncoding
-from .utils import logging
+from .utils import is_sagemaker_mp_enabled, is_torch_tpu_available, is_training_run_on_sagemaker, logging
 
-
-if is_sagemaker_dp_enabled():
-    import smdistributed.dataparallel.torch.distributed as dist
-else:
-    import torch.distributed as dist
 
 if is_training_run_on_sagemaker():
     logging.add_handler(StreamHandler(sys.stdout))
 
-if is_torch_tpu_available():
+if is_torch_tpu_available(check_device=False):
     import torch_xla.core.xla_model as xm
 
 # this is used to suppress an undesired warning emitted by pytorch versions 1.4.2-1.7.0
@@ -64,8 +54,22 @@ except ImportError:
 logger = logging.get_logger(__name__)
 
 
+def atleast_1d(tensor_or_array: Union[torch.Tensor, np.ndarray]):
+    if isinstance(tensor_or_array, torch.Tensor):
+        if hasattr(torch, "atleast_1d"):
+            tensor_or_array = torch.atleast_1d(tensor_or_array)
+        elif tensor_or_array.ndim < 1:
+            tensor_or_array = tensor_or_array[None]
+    else:
+        tensor_or_array = np.atleast_1d(tensor_or_array)
+    return tensor_or_array
+
+
 def torch_pad_and_concatenate(tensor1, tensor2, padding_index=-100):
     """Concatenates `tensor1` and `tensor2` on first axis, applying padding on the second if necessary."""
+    tensor1 = atleast_1d(tensor1)
+    tensor2 = atleast_1d(tensor2)
+
     if len(tensor1.shape) == 1 or tensor1.shape[1] == tensor2.shape[1]:
         return torch.cat((tensor1, tensor2), dim=0)
 
@@ -81,6 +85,9 @@ def torch_pad_and_concatenate(tensor1, tensor2, padding_index=-100):
 
 def numpy_pad_and_concatenate(array1, array2, padding_index=-100):
     """Concatenates `array1` and `array2` on first axis, applying padding on the second if necessary."""
+    array1 = atleast_1d(array1)
+    array2 = atleast_1d(array2)
+
     if len(array1.shape) == 1 or array1.shape[1] == array2.shape[1]:
         return np.concatenate((array1, array2), axis=0)
 
@@ -121,7 +128,7 @@ def find_batch_size(tensors):
             result = find_batch_size(t)
             if result is not None:
                 return result
-    elif isinstance(tensors, (dict, BatchEncoding)):
+    elif isinstance(tensors, Mapping):
         for key, value in tensors.items():
             result = find_batch_size(value)
             if result is not None:
@@ -158,8 +165,7 @@ def nested_xla_mesh_reduce(tensors, name):
 
         if isinstance(tensors, (list, tuple)):
             return type(tensors)(nested_xla_mesh_reduce(t, f"{name}_{i}") for i, t in enumerate(tensors))
-        if tensors.ndim == 0:
-            tensors = tensors[None]
+        tensors = atleast_1d(tensors)
         return xm.mesh_reduce(name, tensors, torch.cat)
     else:
         raise ImportError("Torch xla must be installed to use `nested_xla_mesh_reduce`")
@@ -169,8 +175,8 @@ def distributed_concat(tensor: Any, num_total_examples: Optional[int] = None) ->
     try:
         if isinstance(tensor, (tuple, list)):
             return type(tensor)(distributed_concat(t, num_total_examples) for t in tensor)
+        tensor = atleast_1d(tensor)
         output_tensors = [tensor.clone() for _ in range(dist.get_world_size())]
-        output_tensors = [t if len(t.shape) > 0 else t[None] for t in output_tensors]
         dist.all_gather(output_tensors, tensor)
         concat = torch.cat(output_tensors, dim=0)
 
@@ -226,8 +232,8 @@ def torch_distributed_zero_first(local_rank: int):
 
 class DistributedSamplerWithLoop(DistributedSampler):
     """
-    Like a :obj:torch.utils.data.distributed.DistributedSampler` but loops at the end back to the beginning of the
-    shuffled samples to make each process have a round multiple of batch_size samples.
+    Like a torch.utils.data.distributed.DistributedSampler` but loops at the end back to the beginning of the shuffled
+    samples to make each process have a round multiple of batch_size samples.
 
     Args:
         dataset (`torch.utils.data.Dataset`):
@@ -370,7 +376,6 @@ class DistributedTensorGatherer:
     For some reason, that's not going to roll their boat. This class is there to solve that problem.
 
     Args:
-
         world_size (`int`):
             The number of processes used in the distributed training.
         num_samples (`int`):
@@ -398,8 +403,8 @@ class DistributedTensorGatherer:
 
     def add_arrays(self, arrays):
         """
-        Add `arrays` to the internal storage, Will initialize the storage to the full size at the first arrays
-        passed so that if we're bound to get an OOM, it happens at the beginning.
+        Add `arrays` to the internal storage, Will initialize the storage to the full size at the first arrays passed
+        so that if we're bound to get an OOM, it happens at the beginning.
         """
         if arrays is None:
             return
@@ -459,8 +464,12 @@ class LabelSmoother:
     epsilon: float = 0.1
     ignore_index: int = -100
 
-    def __call__(self, model_output, labels):
+    def __call__(self, model_output, labels, shift_labels=False):
         logits = model_output["logits"] if isinstance(model_output, dict) else model_output[0]
+        if shift_labels:
+            logits = logits[..., :-1, :].contiguous()
+            labels = labels[..., 1:].contiguous()
+
         log_probs = -nn.functional.log_softmax(logits, dim=-1)
         if labels.dim() == log_probs.dim() - 1:
             labels = labels.unsqueeze(-1)
@@ -485,8 +494,8 @@ class LabelSmoother:
 
 def get_length_grouped_indices(lengths, batch_size, mega_batch_mult=None, generator=None):
     """
-    Return a list of indices so that each slice of `batch_size` consecutive indices correspond to elements of
-    similar lengths. To do this, the indices are:
+    Return a list of indices so that each slice of `batch_size` consecutive indices correspond to elements of similar
+    lengths. To do this, the indices are:
 
     - randomly permuted
     - grouped in mega-batches of size `mega_batch_mult * batch_size`
@@ -547,6 +556,12 @@ class LengthGroupedSampler(Sampler):
                     f"'{model_input_name}' key."
                 )
             lengths = [len(feature[model_input_name]) for feature in dataset]
+        elif isinstance(lengths, torch.Tensor):
+            logger.info(
+                "If lengths is a torch.Tensor, LengthGroupedSampler will be slow. Converting lengths to List[int]..."
+            )
+            lengths = lengths.tolist()
+
         self.lengths = lengths
         self.generator = generator
 
@@ -603,6 +618,13 @@ class DistributedLengthGroupedSampler(DistributedSampler):
                     f"'{model_input_name}' key."
                 )
             lengths = [len(feature[model_input_name]) for feature in dataset]
+        elif isinstance(lengths, torch.Tensor):
+            logger.info(
+                "If lengths is a torch.Tensor, DistributedLengthGroupedSampler will be slow. Converting lengths to"
+                " List[int]..."
+            )
+            lengths = lengths.tolist()
+
         self.lengths = lengths
 
         # If the dataset length is evenly divisible by # of replicas, then there
@@ -641,11 +663,10 @@ class DistributedLengthGroupedSampler(DistributedSampler):
 class ShardSampler(Sampler):
     """
     Sampler that shards batches between several processes. Dispatches indices batch by batch: on 2 processes with batch
-    size 4, the first two batches are `[0, 1, 2, 3, 4, 5, 6, 7]` and `[8, 9, 10, 11, 12, 13, 14, 15]`, which
-    shard into `[0, 1, 2, 3]` and `[8, 9, 10, 11]` for GPU-0 and `[4, 5, 6, 7]` and `[12, 13, 14, 15]` for GPU-1.
+    size 4, the first two batches are `[0, 1, 2, 3, 4, 5, 6, 7]` and `[8, 9, 10, 11, 12, 13, 14, 15]`, which shard into
+    `[0, 1, 2, 3]` and `[8, 9, 10, 11]` for GPU-0 and `[4, 5, 6, 7]` and `[12, 13, 14, 15]` for GPU-1.
 
-    The sampler thus yields `[0, 1, 2, 3, 8, 9, 10, 11]` on GPU-0 and `[4, 5, 6, 7, 12, 13, 14, 15]` on
-    GPU-1.
+    The sampler thus yields `[0, 1, 2, 3, 8, 9, 10, 11]` on GPU-0 and `[4, 5, 6, 7, 12, 13, 14, 15]` on GPU-1.
     """
 
     def __init__(
@@ -688,26 +709,25 @@ class ShardSampler(Sampler):
 
 class IterableDatasetShard(IterableDataset):
     """
-    Wraps a PyTorch `IterableDataset` to generate samples for one of the processes only. Instances of this class
-    will always yield a number of samples that is a round multiple of the actual batch size (which is `batch_size x num_processes`). Depending on the value of the `drop_last` attribute, it will either stop the iteration at
-    the first batch that would be too small or loop with indices from the beginning.
+    Wraps a PyTorch `IterableDataset` to generate samples for one of the processes only. Instances of this class will
+    always yield a number of samples that is a round multiple of the actual batch size (which is `batch_size x
+    num_processes`). Depending on the value of the `drop_last` attribute, it will either stop the iteration at the
+    first batch that would be too small or loop with indices from the beginning.
 
-    On two processes with an iterable dataset yielding of `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]` with a batch
-    size of 2:
+    On two processes with an iterable dataset yielding of `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]` with a batch size of
+    2:
 
-    - the shard on process 0 will yield `[0, 1, 4, 5, 8, 9]` so will see batches `[0, 1]`, `[4, 5]`,
-      `[8, 9]`
-    - the shard on process 1 will yield `[2, 3, 6, 7, 10, 11]` so will see batches `[2, 3]`, `[6, 7]`,
-      `[10, 11]`
+    - the shard on process 0 will yield `[0, 1, 4, 5, 8, 9]` so will see batches `[0, 1]`, `[4, 5]`, `[8, 9]`
+    - the shard on process 1 will yield `[2, 3, 6, 7, 10, 11]` so will see batches `[2, 3]`, `[6, 7]`, `[10, 11]`
 
     <Tip warning={true}>
 
         If your IterableDataset implements some randomization that needs to be applied the same way on all processes
-        (for instance, a shuffling), you should use a `torch.Generator` in a `generator` attribute of the
-        `dataset` to generate your random numbers and call the
-        [`~trainer_pt_utils.IterableDatasetShard.set_epoch`] method of this object. It will set the
-        seed of this `generator` to `seed + epoch` on all processes before starting the iteration.
-        Alternatively, you can also implement a `set_epoch()` method in your iterable dataset to deal with this.
+        (for instance, a shuffling), you should use a `torch.Generator` in a `generator` attribute of the `dataset` to
+        generate your random numbers and call the [`~trainer_pt_utils.IterableDatasetShard.set_epoch`] method of this
+        object. It will set the seed of this `generator` to `seed + epoch` on all processes before starting the
+        iteration. Alternatively, you can also implement a `set_epoch()` method in your iterable dataset to deal with
+        this.
 
     </Tip>
 
@@ -810,12 +830,9 @@ def _get_learning_rate(self):
             else:
                 raise
     else:
-        last_lr = (
-            # backward compatibility for pytorch schedulers
-            self.lr_scheduler.get_last_lr()[0]
-            if version.parse(torch.__version__) >= version.parse("1.4")
-            else self.lr_scheduler.get_lr()[0]
-        )
+        last_lr = self.lr_scheduler.get_last_lr()[0]
+        if torch.is_tensor(last_lr):
+            last_lr = last_lr.item()
     return last_lr
 
 
@@ -872,7 +889,7 @@ def log_metrics(self, split, metrics):
 
     Now when this method is run, you will see a report that will include: :
 
-    ```python
+    ```
     init_mem_cpu_alloc_delta   =     1301MB
     init_mem_cpu_peaked_delta  =      154MB
     init_mem_gpu_alloc_delta   =      230MB
@@ -914,23 +931,22 @@ def log_metrics(self, split, metrics):
 
     The GPU allocated and peak memory reporting is done with `torch.cuda.memory_allocated()` and
     `torch.cuda.max_memory_allocated()`. This metric reports only "deltas" for pytorch-specific allocations, as
-    `torch.cuda` memory management system doesn't track any memory allocated outside of pytorch. For example, the
-    very first cuda call typically loads CUDA kernels, which may take from 0.5 to 2GB of GPU memory.
+    `torch.cuda` memory management system doesn't track any memory allocated outside of pytorch. For example, the very
+    first cuda call typically loads CUDA kernels, which may take from 0.5 to 2GB of GPU memory.
 
-    Note that this tracker doesn't account for memory allocations outside of [`Trainer`]'s
-    `__init__`, `train`, `evaluate` and `predict` calls.
+    Note that this tracker doesn't account for memory allocations outside of [`Trainer`]'s `__init__`, `train`,
+    `evaluate` and `predict` calls.
 
     Because `evaluation` calls may happen during `train`, we can't handle nested invocations because
-    `torch.cuda.max_memory_allocated` is a single counter, so if it gets reset by a nested eval call, `train`'s
-    tracker will report incorrect info. If this [pytorch issue](https://github.com/pytorch/pytorch/issues/16266)
-    gets resolved it will be possible to change this class to be re-entrant. Until then we will only track the outer
-    level of `train`, `evaluate` and `predict` methods. Which means that if `eval` is called during `train`,
-    it's the latter that will account for its memory usage and that of the former.
+    `torch.cuda.max_memory_allocated` is a single counter, so if it gets reset by a nested eval call, `train`'s tracker
+    will report incorrect info. If this [pytorch issue](https://github.com/pytorch/pytorch/issues/16266) gets resolved
+    it will be possible to change this class to be re-entrant. Until then we will only track the outer level of
+    `train`, `evaluate` and `predict` methods. Which means that if `eval` is called during `train`, it's the latter
+    that will account for its memory usage and that of the former.
 
     This also means that if any other tool that is used along the [`Trainer`] calls
-    `torch.cuda.reset_peak_memory_stats`, the gpu peak memory stats could be invalid. And the
-    [`Trainer`] will disrupt the normal behavior of any such tools that rely on calling
-    `torch.cuda.reset_peak_memory_stats` themselves.
+    `torch.cuda.reset_peak_memory_stats`, the gpu peak memory stats could be invalid. And the [`Trainer`] will disrupt
+    the normal behavior of any such tools that rely on calling `torch.cuda.reset_peak_memory_stats` themselves.
 
     For best performance you may want to consider turning the memory profiling off for production runs.
     """
@@ -959,8 +975,8 @@ def save_metrics(self, split, metrics, combined=True):
         combined (`bool`, *optional*, defaults to `True`):
             Creates combined metrics by updating `all_results.json` with metrics of this call
 
-    To understand the metrics please read the docstring of [`~Trainer.log_metrics`]. The only
-    difference is that raw unformatted numbers are saved in the current method.
+    To understand the metrics please read the docstring of [`~Trainer.log_metrics`]. The only difference is that raw
+    unformatted numbers are saved in the current method.
 
     """
     if not self.is_world_process_zero():
@@ -1012,19 +1028,34 @@ def get_parameter_names(model, forbidden_layer_types):
     return result
 
 
+def get_module_class_from_name(module, name):
+    """
+    Gets a class from a module by its name.
+
+    Args:
+        module (`torch.nn.Module`): The module to get the class from.
+        name (`str`): The name of the class.
+    """
+    modules_children = list(module.children())
+    if module.__class__.__name__ == name:
+        return module.__class__
+    elif len(modules_children) == 0:
+        return
+    else:
+        for child_module in modules_children:
+            module_class = get_module_class_from_name(child_module, name)
+            if module_class is not None:
+                return module_class
+
+
 if is_sagemaker_mp_enabled():
     import smdistributed.modelparallel.torch as smp
 
     @smp.step()
-    def smp_forward_backward(model, inputs, gradient_accumulation_steps=1, scaler=None):
-        with torch.cuda.amp.autocast(enabled=(scaler is not None)):
-            outputs = model(**inputs)
-
+    def smp_forward_backward(model, inputs, gradient_accumulation_steps=1):
+        outputs = model(**inputs)
         loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
         loss /= gradient_accumulation_steps
-        if scaler is not None:
-            loss = scaler.scale(loss).squeeze()
-
         model.backward(loss)
         return loss
 
@@ -1042,7 +1073,7 @@ if is_sagemaker_mp_enabled():
                 f"Can't gather the values of type {type(tensor)}, only of nested list/tuple/dicts of tensors."
             )
         all_tensors = smp.allgather(tensor, smp.CommGroup.DP_GROUP)
-        all_tensors = [t if len(t.shape) > 0 else t[None] for t in all_tensors]
+        all_tensors = [atleast_1d(t) for t in all_tensors]
         return torch.cat([t.cpu() for t in all_tensors], dim=0)
 
     def smp_nested_concat(tensor):

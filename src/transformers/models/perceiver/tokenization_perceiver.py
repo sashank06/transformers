@@ -28,8 +28,8 @@ class PerceiverTokenizer(PreTrainedTokenizer):
     """
     Construct a Perceiver tokenizer. The Perceiver simply uses raw bytes utf-8 encoding.
 
-    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods.
-    Users should refer to this superclass for more information regarding those methods.
+    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
+    this superclass for more information regarding those methods.
 
     Args:
         pad_token (`str`, *optional*, defaults to `"[PAD]"`):
@@ -41,8 +41,8 @@ class PerceiverTokenizer(PreTrainedTokenizer):
 
             <Tip>
 
-            When building a sequence using special tokens, this is not the token that is used for the end of
-            sequence. The token used is the `sep_token`.
+            When building a sequence using special tokens, this is not the token that is used for the end of sequence.
+            The token used is the `sep_token`.
 
             </Tip>
 
@@ -87,7 +87,7 @@ class PerceiverTokenizer(PreTrainedTokenizer):
             **kwargs,
         )
 
-        self._utf_vocab_size = 2 ** 8  # utf is 8 bits
+        self._utf_vocab_size = 2**8  # utf is 8 bits
 
         # define special tokens dict
         self.special_tokens_encoder: Dict[str, int] = {

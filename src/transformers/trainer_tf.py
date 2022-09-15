@@ -19,7 +19,7 @@ import os
 import warnings
 from typing import Callable, Dict, Optional, Tuple
 
-from .file_utils import ENV_VARS_TRUE_VALUES
+from .utils import ENV_VARS_TRUE_VALUES
 
 
 # Integrations must be imported before ML frameworks:
@@ -34,7 +34,14 @@ from tensorflow.python.distribute.values import PerReplica
 
 from .modeling_tf_utils import TFPreTrainedModel
 from .optimization_tf import GradientAccumulator, create_optimizer
-from .trainer_utils import PREFIX_CHECKPOINT_DIR, EvalPrediction, IntervalStrategy, PredictionOutput, set_seed
+from .trainer_utils import (
+    PREFIX_CHECKPOINT_DIR,
+    EvalPrediction,
+    IntervalStrategy,
+    PredictionOutput,
+    enable_full_determinism,
+    set_seed,
+)
 from .training_args_tf import TFTrainingArguments
 from .utils import logging
 
@@ -58,28 +65,27 @@ class TFTrainer:
         args ([`TFTrainingArguments`]):
             The arguments to tweak training.
         train_dataset ([`~tf.data.Dataset`], *optional*):
-            The dataset to use for training. The dataset should yield tuples of `(features, labels)` where
-            `features` is a dict of input features and `labels` is the labels. If `labels` is a tensor, the loss
-            is calculated by the model by calling `model(features, labels=labels)`. If `labels` is a dict, such as
-            when using a QuestionAnswering head model with multiple targets, the loss is instead calculated by calling
+            The dataset to use for training. The dataset should yield tuples of `(features, labels)` where `features`
+            is a dict of input features and `labels` is the labels. If `labels` is a tensor, the loss is calculated by
+            the model by calling `model(features, labels=labels)`. If `labels` is a dict, such as when using a
+            QuestionAnswering head model with multiple targets, the loss is instead calculated by calling
             `model(features, **labels)`.
         eval_dataset ([`~tf.data.Dataset`], *optional*):
-            The dataset to use for evaluation. The dataset should yield tuples of `(features, labels)` where
-            `features` is a dict of input features and `labels` is the labels. If `labels` is a tensor, the loss
-            is calculated by the model by calling `model(features, labels=labels)`. If `labels` is a dict, such as
-            when using a QuestionAnswering head model with multiple targets, the loss is instead calculated by calling
+            The dataset to use for evaluation. The dataset should yield tuples of `(features, labels)` where `features`
+            is a dict of input features and `labels` is the labels. If `labels` is a tensor, the loss is calculated by
+            the model by calling `model(features, labels=labels)`. If `labels` is a dict, such as when using a
+            QuestionAnswering head model with multiple targets, the loss is instead calculated by calling
             `model(features, **labels)`.
         compute_metrics (`Callable[[EvalPrediction], Dict]`, *optional*):
-            The function that will be used to compute metrics at evaluation. Must take a
-            [`EvalPrediction`] and return a dictionary string to metric values.
+            The function that will be used to compute metrics at evaluation. Must take a [`EvalPrediction`] and return
+            a dictionary string to metric values.
         tb_writer (`tf.summary.SummaryWriter`, *optional*):
             Object to write to TensorBoard.
         optimizers (`Tuple[tf.keras.optimizers.Optimizer, tf.keras.optimizers.schedules.LearningRateSchedule]`, *optional*):
             A tuple containing the optimizer and the scheduler to use. The optimizer default to an instance of
-            [`tf.keras.optimizers.Adam`] if `args.weight_decay_rate` is 0 else an instance of
-            [`AdamWeightDecay`]. The scheduler will default to an instance of
-            [`tf.keras.optimizers.schedules.PolynomialDecay`] if `args.num_warmup_steps` is 0 else an
-            instance of [`WarmUp`].
+            [`tf.keras.optimizers.Adam`] if `args.weight_decay_rate` is 0 else an instance of [`AdamWeightDecay`]. The
+            scheduler will default to an instance of [`tf.keras.optimizers.schedules.PolynomialDecay`] if
+            `args.num_warmup_steps` is 0 else an instance of [`WarmUp`].
     """
 
     def __init__(
@@ -110,7 +116,7 @@ class TFTrainer:
             "The class `TFTrainer` is deprecated and will be removed in version 5 of Transformers. "
             "We recommend using native Keras instead, by calling methods like `fit()` and `predict()` "
             "directly on the model object. Detailed examples of the Keras style can be found in our "
-            "examples at https://github.com/huggingface/transformers/tree/master/examples/tensorflow",
+            "examples at https://github.com/huggingface/transformers/tree/main/examples/tensorflow",
             FutureWarning,
         )
 
@@ -135,7 +141,7 @@ class TFTrainer:
                 "see https://www.comet.ml/docs/python-sdk/huggingface/"
             )
 
-        set_seed(self.args.seed)
+        enable_full_determinism(self.args.seed) if self.args.full_determinism else set_seed(self.args.seed)
 
     def get_train_tfdataset(self) -> tf.data.Dataset:
         """
@@ -167,10 +173,11 @@ class TFTrainer:
 
         Args:
             eval_dataset ([`~tf.data.Dataset`], *optional*):
-                If provided, will override *self.eval_dataset*. The dataset should yield tuples of `(features, labels)` where `features` is a dict of input features and `labels` is the labels. If `labels` is
-                a tensor, the loss is calculated by the model by calling `model(features, labels=labels)`. If
-                `labels` is a dict, such as when using a QuestionAnswering head model with multiple targets, the loss
-                is instead calculated by calling `model(features, **labels)`.
+                If provided, will override *self.eval_dataset*. The dataset should yield tuples of `(features, labels)`
+                where `features` is a dict of input features and `labels` is the labels. If `labels` is a tensor, the
+                loss is calculated by the model by calling `model(features, labels=labels)`. If `labels` is a dict,
+                such as when using a QuestionAnswering head model with multiple targets, the loss is instead calculated
+                by calling `model(features, **labels)`.
 
         Subclass and override this method if you want to inject some custom behavior.
         """
@@ -199,10 +206,10 @@ class TFTrainer:
 
         Args:
             test_dataset ([`~tf.data.Dataset`]):
-                The dataset to use. The dataset should yield tuples of `(features, labels)` where `features` is a
-                dict of input features and `labels` is the labels. If `labels` is a tensor, the loss is calculated
-                by the model by calling `model(features, labels=labels)`. If `labels` is a dict, such as when using
-                a QuestionAnswering head model with multiple targets, the loss is instead calculated by calling
+                The dataset to use. The dataset should yield tuples of `(features, labels)` where `features` is a dict
+                of input features and `labels` is the labels. If `labels` is a tensor, the loss is calculated by the
+                model by calling `model(features, labels=labels)`. If `labels` is a dict, such as when using a
+                QuestionAnswering head model with multiple targets, the loss is instead calculated by calling
                 `model(features, **labels)`.
 
         Subclass and override this method if you want to inject some custom behavior.
@@ -301,8 +308,7 @@ class TFTrainer:
         prediction_loss_only: Optional[bool] = None,
     ) -> PredictionOutput:
         """
-        Prediction/evaluation loop, shared by [`~TFTrainer.evaluate`] and
-        [`~TFTrainer.predict`].
+        Prediction/evaluation loop, shared by [`~TFTrainer.evaluate`] and [`~TFTrainer.predict`].
 
         Works both with or without labels.
         """
@@ -422,8 +428,9 @@ class TFTrainer:
             eval_dataset ([`~tf.data.Dataset`], *optional*):
                 Pass a dataset if you wish to override `self.eval_dataset`. The dataset should yield tuples of
                 `(features, labels)` where `features` is a dict of input features and `labels` is the labels. If
-                `labels` is a tensor, the loss is calculated by the model by calling `model(features, labels=labels)`. If `labels` is a dict, such as when using a QuestionAnswering head model with
-                multiple targets, the loss is instead calculated by calling `model(features, **labels)`.
+                `labels` is a tensor, the loss is calculated by the model by calling `model(features, labels=labels)`.
+                If `labels` is a dict, such as when using a QuestionAnswering head model with multiple targets, the
+                loss is instead calculated by calling `model(features, **labels)`.
 
         Returns:
             A dictionary containing the evaluation loss and the potential metrics computed from the predictions.
@@ -767,17 +774,17 @@ class TFTrainer:
         Args:
             test_dataset ([`~tf.data.Dataset`]):
                 Dataset to run the predictions on. The dataset should yield tuples of `(features, labels)` where
-                `features` is a dict of input features and `labels` is the labels. If `labels` is a tensor, the
-                loss is calculated by the model by calling `model(features, labels=labels)`. If `labels` is a dict,
-                such as when using a QuestionAnswering head model with multiple targets, the loss is instead calculated
-                by calling `model(features, **labels)`
+                `features` is a dict of input features and `labels` is the labels. If `labels` is a tensor, the loss is
+                calculated by the model by calling `model(features, labels=labels)`. If `labels` is a dict, such as
+                when using a QuestionAnswering head model with multiple targets, the loss is instead calculated by
+                calling `model(features, **labels)`
 
         Returns: *NamedTuple* A namedtuple with the following keys:
 
             - predictions (`np.ndarray`): The predictions on `test_dataset`.
             - label_ids (`np.ndarray`, *optional*): The labels (if the dataset contained some).
-            - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset
-              contained labels).
+            - metrics (`Dict[str, float]`, *optional*): The potential dictionary of metrics (if the dataset contained
+              labels).
         """
         test_ds, steps, num_examples = self.get_test_tfdataset(test_dataset)
 

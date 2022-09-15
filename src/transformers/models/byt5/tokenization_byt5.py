@@ -29,8 +29,8 @@ class ByT5Tokenizer(PreTrainedTokenizer):
     """
     Construct a ByT5 tokenizer. ByT5 simply uses raw bytes utf-8 encoding.
 
-    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods.
-    Users should refer to this superclass for more information regarding those methods.
+    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
+    this superclass for more information regarding those methods.
 
     Args:
         eos_token (`str`, *optional*, defaults to `"</s>"`):
@@ -38,8 +38,8 @@ class ByT5Tokenizer(PreTrainedTokenizer):
 
             <Tip>
 
-            When building a sequence using special tokens, this is not the token that is used for the end of
-            sequence. The token used is the `sep_token`.
+            When building a sequence using special tokens, this is not the token that is used for the end of sequence.
+            The token used is the `sep_token`.
 
             </Tip>
 
@@ -52,7 +52,8 @@ class ByT5Tokenizer(PreTrainedTokenizer):
             Add a number of extra ids added to the end of the vocabulary for use as sentinels. These tokens are
             accessible as "<extra_id_{%d}>" where "{%d}" is a number between 0 and extra_ids-1. Extra tokens are
             indexed from the end of the vocabulary up to beginning ("<extra_id_0>" is the last token in the vocabulary
-            like in ByT5 preprocessing see [here](https://github.com/google-research/text-to-text-transfer-transformer/blob/9fd7b14a769417be33bc6c850f9598764913c833/t5/data/preprocessors.py#L2117)).
+            like in ByT5 preprocessing see
+            [here](https://github.com/google-research/text-to-text-transfer-transformer/blob/9fd7b14a769417be33bc6c850f9598764913c833/t5/data/preprocessors.py#L2117)).
         additional_special_tokens (`List[str]`, *optional*):
             Additional special tokens used by the tokenizer.
     """
@@ -76,8 +77,9 @@ class ByT5Tokenizer(PreTrainedTokenizer):
             extra_tokens = len(set(filter(lambda x: bool("extra_id" in str(x)), additional_special_tokens)))
             if extra_tokens != extra_ids:
                 raise ValueError(
-                    f"Both extra_ids ({extra_ids}) and additional_special_tokens ({additional_special_tokens}) are provided to ByT5Tokenizer. "
-                    "In this case the additional_special_tokens must include the extra_ids tokens"
+                    f"Both extra_ids ({extra_ids}) and additional_special_tokens ({additional_special_tokens}) are"
+                    " provided to ByT5Tokenizer. In this case the additional_special_tokens must include the"
+                    " extra_ids tokens"
                 )
 
         pad_token = AddedToken(pad_token, lstrip=False, rstrip=False) if isinstance(pad_token, str) else pad_token
@@ -95,7 +97,7 @@ class ByT5Tokenizer(PreTrainedTokenizer):
 
         self._extra_ids = extra_ids
 
-        self._utf_vocab_size = 2 ** 8  # utf is 8 bits
+        self._utf_vocab_size = 2**8  # utf is 8 bits
 
         # define special tokens dict
         self.special_tokens_encoder: Dict[int, str] = {
@@ -145,7 +147,8 @@ class ByT5Tokenizer(PreTrainedTokenizer):
         """Do not add eos again if user already added it."""
         if len(token_ids) > 0 and token_ids[-1] == self.eos_token_id:
             warnings.warn(
-                f"This sequence already has {self.eos_token}. In future versions this behavior may lead to duplicated eos tokens being added."
+                f"This sequence already has {self.eos_token}. In future versions this behavior may lead to duplicated"
+                " eos tokens being added."
             )
             return token_ids
         else:

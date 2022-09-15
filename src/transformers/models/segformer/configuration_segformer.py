@@ -12,34 +12,41 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" SegFormer model configuration """
+""" SegFormer model configuration"""
+
+import warnings
+from collections import OrderedDict
+from typing import Mapping
+
+from packaging import version
 
 from ...configuration_utils import PretrainedConfig
+from ...onnx import OnnxConfig
 from ...utils import logging
 
 
 logger = logging.get_logger(__name__)
 
 SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "nvidia/segformer-b0-finetuned-ade-512-512": "https://huggingface.co/nvidia/segformer-b0-finetuned-ade-512-512/resolve/main/config.json",
+    "nvidia/segformer-b0-finetuned-ade-512-512": (
+        "https://huggingface.co/nvidia/segformer-b0-finetuned-ade-512-512/resolve/main/config.json"
+    ),
     # See all SegFormer models at https://huggingface.co/models?filter=segformer
 }
 
 
 class SegformerConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a [`SegformerModel`]. It is used
-    to instantiate an SegFormer model according to the specified arguments, defining the model architecture.
-    Instantiating a configuration with the defaults will yield a similar configuration to that of the SegFormer
+    This is the configuration class to store the configuration of a [`SegformerModel`]. It is used to instantiate an
+    SegFormer model according to the specified arguments, defining the model architecture. Instantiating a
+    configuration with the defaults will yield a similar configuration to that of the SegFormer
     [nvidia/segformer-b0-finetuned-ade-512-512](https://huggingface.co/nvidia/segformer-b0-finetuned-ade-512-512)
     architecture.
 
-    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model
-    outputs. Read the documentation from [`PretrainedConfig`] for more information.
+    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
+    documentation from [`PretrainedConfig`] for more information.
 
     Args:
-        image_size (`int`, *optional*, defaults to 512):
-            The size (resolution) of each image.
         num_channels (`int`, *optional*, defaults to 3):
             The number of input channels.
         num_encoder_blocks (`int`, *optional*, defaults to 4):
@@ -50,20 +57,18 @@ class SegformerConfig(PretrainedConfig):
             Sequence reduction ratios in each encoder block.
         hidden_sizes (`List[int]`, *optional*, defaults to [32, 64, 160, 256]):
             Dimension of each of the encoder blocks.
-        downsampling_rates (`List[int]`, *optional*, defaults to [1, 4, 8, 16]):
-            Downsample rate of the image resolution compared to the original image size before each encoder block.
         patch_sizes (`List[int]`, *optional*, defaults to [7, 3, 3, 3]):
             Patch size before each encoder block.
         strides (`List[int]`, *optional*, defaults to [4, 2, 2, 2]):
             Stride before each encoder block.
-        num_attention_heads (`List[int]`, *optional*, defaults to [1, 2, 4, 8]):
+        num_attention_heads (`List[int]`, *optional*, defaults to [1, 2, 5, 8]):
             Number of attention heads for each attention layer in each block of the Transformer encoder.
         mlp_ratios (`List[int]`, *optional*, defaults to [4, 4, 4, 4]):
             Ratio of the size of the hidden layer compared to the size of the input layer of the Mix FFNs in the
             encoder blocks.
         hidden_act (`str` or `function`, *optional*, defaults to `"gelu"`):
-            The non-linear activation function (function or string) in the encoder and pooler. If string,
-            `"gelu"`, `"relu"`, `"selu"` and `"gelu_new"` are supported.
+            The non-linear activation function (function or string) in the encoder and pooler. If string, `"gelu"`,
+            `"relu"`, `"selu"` and `"gelu_new"` are supported.
         hidden_dropout_prob (`float`, *optional*, defaults to 0.0):
             The dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
         attention_probs_dropout_prob (`float`, *optional*, defaults to 0.0):
@@ -78,9 +83,6 @@ class SegformerConfig(PretrainedConfig):
             The epsilon used by the layer normalization layers.
         decoder_hidden_size (`int`, *optional*, defaults to 256):
             The dimension of the all-MLP decode head.
-        reshape_last_stage (`bool`, *optional*, defaults to `True`):
-            Whether to reshape the features of the last stage back to `(batch_size, num_channels, height, width)`.
-            Only required for the semantic segmentation model.
         semantic_loss_ignore_index (`int`, *optional*, defaults to 255):
             The index that is ignored by the loss function of the semantic segmentation model.
 
@@ -102,13 +104,11 @@ class SegformerConfig(PretrainedConfig):
 
     def __init__(
         self,
-        image_size=224,
         num_channels=3,
         num_encoder_blocks=4,
         depths=[2, 2, 2, 2],
         sr_ratios=[8, 4, 2, 1],
         hidden_sizes=[32, 64, 160, 256],
-        downsampling_rates=[1, 4, 8, 16],
         patch_sizes=[7, 3, 3, 3],
         strides=[4, 2, 2, 2],
         num_attention_heads=[1, 2, 5, 8],
@@ -122,19 +122,23 @@ class SegformerConfig(PretrainedConfig):
         layer_norm_eps=1e-6,
         decoder_hidden_size=256,
         is_encoder_decoder=False,
-        reshape_last_stage=True,
         semantic_loss_ignore_index=255,
         **kwargs
     ):
         super().__init__(**kwargs)
 
-        self.image_size = image_size
+        if "reshape_last_stage" in kwargs and kwargs["reshape_last_stage"] is False:
+            warnings.warn(
+                "Reshape_last_stage is set to False in this config. This argument is deprecated and will soon be"
+                " removed, as the behaviour will default to that of reshape_last_stage = True.",
+                FutureWarning,
+            )
+
         self.num_channels = num_channels
         self.num_encoder_blocks = num_encoder_blocks
         self.depths = depths
         self.sr_ratios = sr_ratios
         self.hidden_sizes = hidden_sizes
-        self.downsampling_rates = downsampling_rates
         self.patch_sizes = patch_sizes
         self.strides = strides
         self.mlp_ratios = mlp_ratios
@@ -147,5 +151,26 @@ class SegformerConfig(PretrainedConfig):
         self.drop_path_rate = drop_path_rate
         self.layer_norm_eps = layer_norm_eps
         self.decoder_hidden_size = decoder_hidden_size
-        self.reshape_last_stage = reshape_last_stage
+        self.reshape_last_stage = kwargs.get("reshape_last_stage", True)
         self.semantic_loss_ignore_index = semantic_loss_ignore_index
+
+
+class SegformerOnnxConfig(OnnxConfig):
+
+    torch_onnx_minimum_version = version.parse("1.11")
+
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        return OrderedDict(
+            [
+                ("pixel_values", {0: "batch", 1: "num_channels", 2: "height", 3: "width"}),
+            ]
+        )
+
+    @property
+    def atol_for_validation(self) -> float:
+        return 1e-4
+
+    @property
+    def default_onnx_opset(self) -> int:
+        return 12

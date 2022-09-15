@@ -42,13 +42,21 @@ PRETRAINED_VOCAB_FILES_MAP = {
         "funnel-transformer/small": "https://huggingface.co/funnel-transformer/small/resolve/main/vocab.txt",
         "funnel-transformer/small-base": "https://huggingface.co/funnel-transformer/small-base/resolve/main/vocab.txt",
         "funnel-transformer/medium": "https://huggingface.co/funnel-transformer/medium/resolve/main/vocab.txt",
-        "funnel-transformer/medium-base": "https://huggingface.co/funnel-transformer/medium-base/resolve/main/vocab.txt",
-        "funnel-transformer/intermediate": "https://huggingface.co/funnel-transformer/intermediate/resolve/main/vocab.txt",
-        "funnel-transformer/intermediate-base": "https://huggingface.co/funnel-transformer/intermediate-base/resolve/main/vocab.txt",
+        "funnel-transformer/medium-base": (
+            "https://huggingface.co/funnel-transformer/medium-base/resolve/main/vocab.txt"
+        ),
+        "funnel-transformer/intermediate": (
+            "https://huggingface.co/funnel-transformer/intermediate/resolve/main/vocab.txt"
+        ),
+        "funnel-transformer/intermediate-base": (
+            "https://huggingface.co/funnel-transformer/intermediate-base/resolve/main/vocab.txt"
+        ),
         "funnel-transformer/large": "https://huggingface.co/funnel-transformer/large/resolve/main/vocab.txt",
         "funnel-transformer/large-base": "https://huggingface.co/funnel-transformer/large-base/resolve/main/vocab.txt",
         "funnel-transformer/xlarge": "https://huggingface.co/funnel-transformer/xlarge/resolve/main/vocab.txt",
-        "funnel-transformer/xlarge-base": "https://huggingface.co/funnel-transformer/xlarge-base/resolve/main/vocab.txt",
+        "funnel-transformer/xlarge-base": (
+            "https://huggingface.co/funnel-transformer/xlarge-base/resolve/main/vocab.txt"
+        ),
     }
 }
 PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {f"funnel-transformer/{name}": 512 for name in _model_names}
@@ -59,11 +67,10 @@ class FunnelTokenizer(BertTokenizer):
     r"""
     Construct a Funnel Transformer tokenizer.
 
-    [`FunnelTokenizer`] is identical to [`BertTokenizer`] and runs end-to-end
-    tokenization: punctuation splitting and wordpiece.
+    [`FunnelTokenizer`] is identical to [`BertTokenizer`] and runs end-to-end tokenization: punctuation splitting and
+    wordpiece.
 
-    Refer to superclass [`BertTokenizer`] for usage examples and documentation concerning
-    parameters.
+    Refer to superclass [`BertTokenizer`] for usage examples and documentation concerning parameters.
     """
 
     vocab_files_names = VOCAB_FILES_NAMES
@@ -127,8 +134,7 @@ class FunnelTokenizer(BertTokenizer):
                 Optional second list of IDs for sequence pairs.
 
         Returns:
-            `List[int]`: List of [token type IDs](../glossary#token-type-ids) according to the given
-            sequence(s).
+            `List[int]`: List of [token type IDs](../glossary#token-type-ids) according to the given sequence(s).
         """
         sep = [self.sep_token_id]
         cls = [self.cls_token_id]

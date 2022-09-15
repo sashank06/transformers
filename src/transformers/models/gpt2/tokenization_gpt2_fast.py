@@ -89,13 +89,12 @@ class GPT2TokenizerFast(PreTrainedTokenizerFast):
 
     <Tip>
 
-    When used with `is_split_into_words=True`, this tokenizer needs to be instantiated with
-    `add_prefix_space=True`.
+    When used with `is_split_into_words=True`, this tokenizer needs to be instantiated with `add_prefix_space=True`.
 
     </Tip>
 
-    This tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main
-    methods. Users should refer to this superclass for more information regarding those methods.
+    This tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main methods. Users should
+    refer to this superclass for more information regarding those methods.
 
     Args:
         vocab_file (`str`):
@@ -103,7 +102,8 @@ class GPT2TokenizerFast(PreTrainedTokenizerFast):
         merges_file (`str`):
             Path to the merges file.
         errors (`str`, *optional*, defaults to `"replace"`):
-            Paradigm to follow when decoding bytes to UTF-8. See [bytes.decode](https://docs.python.org/3/library/stdtypes.html#bytes.decode) for more information.
+            Paradigm to follow when decoding bytes to UTF-8. See
+            [bytes.decode](https://docs.python.org/3/library/stdtypes.html#bytes.decode) for more information.
         unk_token (`str`, *optional*, defaults to `<|endoftext|>`):
             The unknown token. A token that is not in the vocabulary cannot be converted to an ID and is set to be this
             token instead.
@@ -145,6 +145,17 @@ class GPT2TokenizerFast(PreTrainedTokenizerFast):
             add_prefix_space=add_prefix_space,
             **kwargs,
         )
+
+        if kwargs.pop("add_bos_token", False):
+            model_id = kwargs.pop("name_or_path", "")
+            raise ValueError(
+                "Currenty GPT2's fast tokenizer does NOT support adding a BOS token."
+                "Instead you should use GPT2's slow tokenizer class `GPT2Tokenizer` as follows: \n"
+                f"`GPT2Tokenizer.from_pretrained('{model_id}')`\nor\n"
+                f"`AutoTokenizer.from_pretrained('{model_id}', use_fast=False)`\n"
+                "This issue will be fixed soon, see: https://github.com/huggingface/tokenizers/pull/1005."
+                " so that the fast tokenizer works correctly."
+            )
 
         pre_tok_state = json.loads(self.backend_tokenizer.pre_tokenizer.__getstate__())
         if pre_tok_state.get("add_prefix_space", add_prefix_space) != add_prefix_space:

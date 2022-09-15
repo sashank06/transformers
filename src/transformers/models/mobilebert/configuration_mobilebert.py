@@ -12,34 +12,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" MobileBERT model configuration """
+""" MobileBERT model configuration"""
+from collections import OrderedDict
+from typing import Mapping
 
 from ...configuration_utils import PretrainedConfig
+from ...onnx import OnnxConfig
 from ...utils import logging
 
 
 logger = logging.get_logger(__name__)
 
 MOBILEBERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "mobilebert-uncased": "https://huggingface.co/google/mobilebert-uncased/resolve/main/config.json"
+    "google/mobilebert-uncased": "https://huggingface.co/google/mobilebert-uncased/resolve/main/config.json"
 }
 
 
 class MobileBertConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a [`MobileBertModel`] or a
-    [`TFMobileBertModel`]. It is used to instantiate a MobileBERT model according to the specified
-    arguments, defining the model architecture.
+    This is the configuration class to store the configuration of a [`MobileBertModel`] or a [`TFMobileBertModel`]. It
+    is used to instantiate a MobileBERT model according to the specified arguments, defining the model architecture.
+    Instantiating a configuration with the defaults will yield a similar configuration to that of the MobileBERT
+    [google/mobilebert-uncased](https://huggingface.co/google/mobilebert-uncased) architecture.
 
-    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model
-    outputs. Read the documentation from [`PretrainedConfig`] for more information.
+    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
+    documentation from [`PretrainedConfig`] for more information.
 
 
     Args:
         vocab_size (`int`, *optional*, defaults to 30522):
             Vocabulary size of the MobileBERT model. Defines the number of different tokens that can be represented by
-            the `inputs_ids` passed when calling [`MobileBertModel`] or
-            [`TFMobileBertModel`].
+            the `inputs_ids` passed when calling [`MobileBertModel`] or [`TFMobileBertModel`].
         hidden_size (`int`, *optional*, defaults to 512):
             Dimensionality of the encoder layers and the pooler layer.
         num_hidden_layers (`int`, *optional*, defaults to 24):
@@ -49,8 +52,8 @@ class MobileBertConfig(PretrainedConfig):
         intermediate_size (`int`, *optional*, defaults to 512):
             Dimensionality of the "intermediate" (often named feed-forward) layer in the Transformer encoder.
         hidden_act (`str` or `function`, *optional*, defaults to `"relu"`):
-            The non-linear activation function (function or string) in the encoder and pooler. If string,
-            `"gelu"`, `"relu"`, `"silu"` and `"gelu_new"` are supported.
+            The non-linear activation function (function or string) in the encoder and pooler. If string, `"gelu"`,
+            `"relu"`, `"silu"` and `"gelu_new"` are supported.
         hidden_dropout_prob (`float`, *optional*, defaults to 0.0):
             The dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
         attention_probs_dropout_prob (`float`, *optional*, defaults to 0.1):
@@ -59,8 +62,8 @@ class MobileBertConfig(PretrainedConfig):
             The maximum sequence length that this model might ever be used with. Typically set this to something large
             just in case (e.g., 512 or 1024 or 2048).
         type_vocab_size (`int`, *optional*, defaults to 2):
-            The vocabulary size of the `token_type_ids` passed when calling [`MobileBertModel`]
-            or [`TFMobileBertModel`].
+            The vocabulary size of the `token_type_ids` passed when calling [`MobileBertModel`] or
+            [`TFMobileBertModel`].
         initializer_range (`float`, *optional*, defaults to 0.02):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
         layer_norm_eps (`float`, *optional*, defaults to 1e-12):
@@ -165,3 +168,20 @@ class MobileBertConfig(PretrainedConfig):
             self.true_hidden_size = hidden_size
 
         self.classifier_dropout = classifier_dropout
+
+
+# Copied from transformers.models.bert.configuration_bert.BertOnnxConfig with Bert->MobileBert
+class MobileBertOnnxConfig(OnnxConfig):
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        if self.task == "multiple-choice":
+            dynamic_axis = {0: "batch", 1: "choice", 2: "sequence"}
+        else:
+            dynamic_axis = {0: "batch", 1: "sequence"}
+        return OrderedDict(
+            [
+                ("input_ids", dynamic_axis),
+                ("attention_mask", dynamic_axis),
+                ("token_type_ids", dynamic_axis),
+            ]
+        )

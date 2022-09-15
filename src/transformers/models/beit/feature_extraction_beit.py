@@ -20,7 +20,6 @@ import numpy as np
 from PIL import Image
 
 from ...feature_extraction_utils import BatchFeature, FeatureExtractionMixin
-from ...file_utils import TensorType
 from ...image_utils import (
     IMAGENET_STANDARD_MEAN,
     IMAGENET_STANDARD_STD,
@@ -28,7 +27,7 @@ from ...image_utils import (
     ImageInput,
     is_torch_tensor,
 )
-from ...utils import logging
+from ...utils import TensorType, logging
 
 
 logger = logging.get_logger(__name__)
@@ -38,27 +37,25 @@ class BeitFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
     r"""
     Constructs a BEiT feature extractor.
 
-    This feature extractor inherits from [`~feature_extraction_utils.FeatureExtractionMixin`] which
-    contains most of the main methods. Users should refer to this superclass for more information regarding those
-    methods.
+    This feature extractor inherits from [`~feature_extraction_utils.FeatureExtractionMixin`] which contains most of
+    the main methods. Users should refer to this superclass for more information regarding those methods.
 
     Args:
         do_resize (`bool`, *optional*, defaults to `True`):
             Whether to resize the input to a certain `size`.
         size (`int` or `Tuple(int)`, *optional*, defaults to 256):
             Resize the input to the given size. If a tuple is provided, it should be (width, height). If only an
-            integer is provided, then the input will be resized to (size, size). Only has an effect if `do_resize`
-            is set to `True`.
+            integer is provided, then the input will be resized to (size, size). Only has an effect if `do_resize` is
+            set to `True`.
         resample (`int`, *optional*, defaults to `PIL.Image.BICUBIC`):
             An optional resampling filter. This can be one of `PIL.Image.NEAREST`, `PIL.Image.BOX`,
-            `PIL.Image.BILINEAR`, `PIL.Image.HAMMING`, `PIL.Image.BICUBIC` or `PIL.Image.LANCZOS`.
-            Only has an effect if `do_resize` is set to `True`.
+            `PIL.Image.BILINEAR`, `PIL.Image.HAMMING`, `PIL.Image.BICUBIC` or `PIL.Image.LANCZOS`. Only has an effect
+            if `do_resize` is set to `True`.
         do_center_crop (`bool`, *optional*, defaults to `True`):
-            Whether to crop the input at the center. If the input size is smaller than `crop_size` along any edge,
-            the image is padded with 0's and then center cropped.
+            Whether to crop the input at the center. If the input size is smaller than `crop_size` along any edge, the
+            image is padded with 0's and then center cropped.
         crop_size (`int`, *optional*, defaults to 224):
-            Desired output size when applying center-cropping. Only has an effect if `do_center_crop` is set to
-            `True`.
+            Desired output size when applying center-cropping. Only has an effect if `do_center_crop` is set to `True`.
         do_normalize (`bool`, *optional*, defaults to `True`):
             Whether or not to normalize the input with `image_mean` and `image_std`.
         image_mean (`List[int]`, defaults to `[0.5, 0.5, 0.5]`):
@@ -123,7 +120,7 @@ class BeitFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
             segmentation_maps (`PIL.Image.Image`, `np.ndarray`, `torch.Tensor`, `List[PIL.Image.Image]`, `List[np.ndarray]`, `List[torch.Tensor]`, *optional*):
                 Optionally, the corresponding semantic segmentation maps with the pixel-wise annotations.
 
-            return_tensors (`str` or [`~file_utils.TensorType`], *optional*, defaults to `'np'`):
+            return_tensors (`str` or [`~utils.TensorType`], *optional*, defaults to `'np'`):
                 If set, will return tensors of a particular framework. Acceptable values are:
 
                 - `'tf'`: Return TensorFlow `tf.constant` objects.
@@ -169,8 +166,9 @@ class BeitFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
 
             if not valid_segmentation_maps:
                 raise ValueError(
-                    "Segmentation maps must of type `PIL.Image.Image`, `np.ndarray` or `torch.Tensor` (single example),"
-                    "`List[PIL.Image.Image]`, `List[np.ndarray]` or `List[torch.Tensor]` (batch of examples)."
+                    "Segmentation maps must of type `PIL.Image.Image`, `np.ndarray` or `torch.Tensor` (single"
+                    " example),`List[PIL.Image.Image]`, `List[np.ndarray]` or `List[torch.Tensor]` (batch of"
+                    " examples)."
                 )
 
         is_batched = bool(

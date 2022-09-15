@@ -41,7 +41,9 @@ PRETRAINED_VOCAB_FILES_MAP = {
         "facebook/blenderbot_small-90M": "https://huggingface.co/facebook/blenderbot_small-90M/resolve/main/merges.txt"
     },
     "tokenizer_config_file": {
-        "facebook/blenderbot_small-90M": "https://huggingface.co/facebook/blenderbot_small-90M/resolve/main/tokenizer_config.json"
+        "facebook/blenderbot_small-90M": (
+            "https://huggingface.co/facebook/blenderbot_small-90M/resolve/main/tokenizer_config.json"
+        )
     },
 }
 
@@ -68,8 +70,8 @@ class BlenderbotSmallTokenizer(PreTrainedTokenizer):
     """
     Constructs a Blenderbot-90M tokenizer based on BPE (Byte-Pair-Encoding)
 
-    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods.
-    Users should refer to the superclass for more information regarding methods.
+    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
+    the superclass for more information regarding methods.
 
     Args:
         vocab_file (`str`):
@@ -202,7 +204,7 @@ class BlenderbotSmallTokenizer(PreTrainedTokenizer):
         return self.decoder.get(index, self.unk_token)
 
     def convert_tokens_to_string(self, tokens: List[str]) -> str:
-        """Converts a sequence of tokens  in a single string."""
+        """Converts a sequence of tokens in a single string."""
         out_string = " ".join(tokens).replace("@@ ", "").strip()
         return out_string
 
@@ -218,7 +220,7 @@ class BlenderbotSmallTokenizer(PreTrainedTokenizer):
         )
 
         with open(vocab_file, "w", encoding="utf-8") as f:
-            f.write(json.dumps(self.encoder, ensure_ascii=False))
+            f.write(json.dumps(self.encoder, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
 
         index = 0
         with open(merge_file, "w", encoding="utf-8") as writer:

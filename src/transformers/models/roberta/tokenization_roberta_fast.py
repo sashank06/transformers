@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Fast Tokenization classes for RoBERTa."""
+import json
+from typing import List, Optional, Tuple
 
-from typing import List, Optional
+from tokenizers import pre_tokenizers, processors
 
-from ...tokenization_utils_base import AddedToken
+from ...tokenization_utils_base import AddedToken, BatchEncoding
+from ...tokenization_utils_fast import PreTrainedTokenizerFast
 from ...utils import logging
-from ..gpt2.tokenization_gpt2_fast import GPT2TokenizerFast
 from .tokenization_roberta import RobertaTokenizer
 
 
@@ -33,7 +35,9 @@ PRETRAINED_VOCAB_FILES_MAP = {
         "roberta-large-mnli": "https://huggingface.co/roberta-large-mnli/resolve/main/vocab.json",
         "distilroberta-base": "https://huggingface.co/distilroberta-base/resolve/main/vocab.json",
         "roberta-base-openai-detector": "https://huggingface.co/roberta-base-openai-detector/resolve/main/vocab.json",
-        "roberta-large-openai-detector": "https://huggingface.co/roberta-large-openai-detector/resolve/main/vocab.json",
+        "roberta-large-openai-detector": (
+            "https://huggingface.co/roberta-large-openai-detector/resolve/main/vocab.json"
+        ),
     },
     "merges_file": {
         "roberta-base": "https://huggingface.co/roberta-base/resolve/main/merges.txt",
@@ -41,15 +45,21 @@ PRETRAINED_VOCAB_FILES_MAP = {
         "roberta-large-mnli": "https://huggingface.co/roberta-large-mnli/resolve/main/merges.txt",
         "distilroberta-base": "https://huggingface.co/distilroberta-base/resolve/main/merges.txt",
         "roberta-base-openai-detector": "https://huggingface.co/roberta-base-openai-detector/resolve/main/merges.txt",
-        "roberta-large-openai-detector": "https://huggingface.co/roberta-large-openai-detector/resolve/main/merges.txt",
+        "roberta-large-openai-detector": (
+            "https://huggingface.co/roberta-large-openai-detector/resolve/main/merges.txt"
+        ),
     },
     "tokenizer_file": {
         "roberta-base": "https://huggingface.co/roberta-base/resolve/main/tokenizer.json",
         "roberta-large": "https://huggingface.co/roberta-large/resolve/main/tokenizer.json",
         "roberta-large-mnli": "https://huggingface.co/roberta-large-mnli/resolve/main/tokenizer.json",
         "distilroberta-base": "https://huggingface.co/distilroberta-base/resolve/main/tokenizer.json",
-        "roberta-base-openai-detector": "https://huggingface.co/roberta-base-openai-detector/resolve/main/tokenizer.json",
-        "roberta-large-openai-detector": "https://huggingface.co/roberta-large-openai-detector/resolve/main/tokenizer.json",
+        "roberta-base-openai-detector": (
+            "https://huggingface.co/roberta-base-openai-detector/resolve/main/tokenizer.json"
+        ),
+        "roberta-large-openai-detector": (
+            "https://huggingface.co/roberta-large-openai-detector/resolve/main/tokenizer.json"
+        ),
     },
 }
 
@@ -63,7 +73,7 @@ PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
 }
 
 
-class RobertaTokenizerFast(GPT2TokenizerFast):
+class RobertaTokenizerFast(PreTrainedTokenizerFast):
     """
     Construct a "fast" RoBERTa tokenizer (backed by HuggingFace's *tokenizers* library), derived from the GPT-2
     tokenizer, using byte-level Byte-Pair-Encoding.
@@ -85,13 +95,12 @@ class RobertaTokenizerFast(GPT2TokenizerFast):
 
     <Tip>
 
-    When used with `is_split_into_words=True`, this tokenizer needs to be instantiated with
-    `add_prefix_space=True`.
+    When used with `is_split_into_words=True`, this tokenizer needs to be instantiated with `add_prefix_space=True`.
 
     </Tip>
 
-    This tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main
-    methods. Users should refer to this superclass for more information regarding those methods.
+    This tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main methods. Users should
+    refer to this superclass for more information regarding those methods.
 
     Args:
         vocab_file (`str`):
@@ -99,7 +108,8 @@ class RobertaTokenizerFast(GPT2TokenizerFast):
         merges_file (`str`):
             Path to the merges file.
         errors (`str`, *optional*, defaults to `"replace"`):
-            Paradigm to follow when decoding bytes to UTF-8. See [bytes.decode](https://docs.python.org/3/library/stdtypes.html#bytes.decode) for more information.
+            Paradigm to follow when decoding bytes to UTF-8. See
+            [bytes.decode](https://docs.python.org/3/library/stdtypes.html#bytes.decode) for more information.
         bos_token (`str`, *optional*, defaults to `"<s>"`):
             The beginning of sequence token that was used during pretraining. Can be used a sequence classifier token.
 
@@ -115,8 +125,8 @@ class RobertaTokenizerFast(GPT2TokenizerFast):
 
             <Tip>
 
-            When building a sequence using special tokens, this is not the token that is used for the end of
-            sequence. The token used is the `sep_token`.
+            When building a sequence using special tokens, this is not the token that is used for the end of sequence.
+            The token used is the `sep_token`.
 
             </Tip>
 
@@ -162,6 +172,7 @@ class RobertaTokenizerFast(GPT2TokenizerFast):
         pad_token="<pad>",
         mask_token="<mask>",
         add_prefix_space=False,
+        trim_offsets=True,
         **kwargs
     ):
         super().__init__(
@@ -177,20 +188,56 @@ class RobertaTokenizerFast(GPT2TokenizerFast):
             pad_token=pad_token,
             mask_token=mask_token,
             add_prefix_space=add_prefix_space,
+            trim_offsets=trim_offsets,
             **kwargs,
         )
+
+        pre_tok_state = json.loads(self.backend_tokenizer.pre_tokenizer.__getstate__())
+        if pre_tok_state.get("add_prefix_space", add_prefix_space) != add_prefix_space:
+            pre_tok_class = getattr(pre_tokenizers, pre_tok_state.pop("type"))
+            pre_tok_state["add_prefix_space"] = add_prefix_space
+            self.backend_tokenizer.pre_tokenizer = pre_tok_class(**pre_tok_state)
+
+        self.add_prefix_space = add_prefix_space
+
+        tokenizer_component = "post_processor"
+        tokenizer_component_instance = getattr(self.backend_tokenizer, tokenizer_component, None)
+        if tokenizer_component_instance:
+            state = json.loads(tokenizer_component_instance.__getstate__())
+
+            # The lists 'sep' and 'cls' must be cased in tuples for the object `post_processor_class`
+            if "sep" in state:
+                state["sep"] = tuple(state["sep"])
+            if "cls" in state:
+                state["cls"] = tuple(state["cls"])
+
+            changes_to_apply = False
+
+            if state.get("add_prefix_space", add_prefix_space) != add_prefix_space:
+                state["add_prefix_space"] = add_prefix_space
+                changes_to_apply = True
+
+            if state.get("trim_offsets", trim_offsets) != trim_offsets:
+                state["trim_offsets"] = trim_offsets
+                changes_to_apply = True
+
+            if changes_to_apply:
+                component_class = getattr(processors, state.pop("type"))
+                new_value = component_class(**state)
+                setattr(self.backend_tokenizer, tokenizer_component, new_value)
 
     @property
     def mask_token(self) -> str:
         """
-        `str`: Mask token, to use when training a model with masked-language modeling. Log an error if used while
-        not having been set.
+        `str`: Mask token, to use when training a model with masked-language modeling. Log an error if used while not
+        having been set.
 
         Roberta tokenizer has a special mask token to be usable in the fill-mask pipeline. The mask token will greedily
         comprise the space before the *<mask>*.
         """
-        if self._mask_token is None and self.verbose:
-            logger.error("Using mask_token, but it is not set yet.")
+        if self._mask_token is None:
+            if self.verbose:
+                logger.error("Using mask_token, but it is not set yet.")
             return None
         return str(self._mask_token)
 
@@ -205,6 +252,29 @@ class RobertaTokenizerFast(GPT2TokenizerFast):
         # So we set lstrip to True
         value = AddedToken(value, lstrip=True, rstrip=False) if isinstance(value, str) else value
         self._mask_token = value
+
+    def _batch_encode_plus(self, *args, **kwargs) -> BatchEncoding:
+        is_split_into_words = kwargs.get("is_split_into_words", False)
+        assert self.add_prefix_space or not is_split_into_words, (
+            f"You need to instantiate {self.__class__.__name__} with add_prefix_space=True "
+            "to use it with pretokenized inputs."
+        )
+
+        return super()._batch_encode_plus(*args, **kwargs)
+
+    def _encode_plus(self, *args, **kwargs) -> BatchEncoding:
+        is_split_into_words = kwargs.get("is_split_into_words", False)
+
+        assert self.add_prefix_space or not is_split_into_words, (
+            f"You need to instantiate {self.__class__.__name__} with add_prefix_space=True "
+            "to use it with pretokenized inputs."
+        )
+
+        return super()._encode_plus(*args, **kwargs)
+
+    def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None) -> Tuple[str]:
+        files = self._tokenizer.model.save(save_directory, name=filename_prefix)
+        return tuple(files)
 
     def build_inputs_with_special_tokens(self, token_ids_0, token_ids_1=None):
         output = [self.bos_token_id] + token_ids_0 + [self.eos_token_id]

@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Union
 
-from ..file_utils import add_end_docstrings, is_torch_available, is_vision_available, requires_backends
-from ..utils import logging
+from ..utils import add_end_docstrings, is_torch_available, is_vision_available, logging, requires_backends
 from .base import PIPELINE_INIT_ARGS, Pipeline
 
 
@@ -24,11 +23,11 @@ Predictions = List[Prediction]
 @add_end_docstrings(PIPELINE_INIT_ARGS)
 class ObjectDetectionPipeline(Pipeline):
     """
-    Object detection pipeline using any `AutoModelForObjectDetection`. This pipeline predicts bounding boxes of
-    objects and their classes.
+    Object detection pipeline using any `AutoModelForObjectDetection`. This pipeline predicts bounding boxes of objects
+    and their classes.
 
-    This object detection pipeline can currently be loaded from [`pipeline`] using the following task
-    identifier: `"object-detection"`.
+    This object detection pipeline can currently be loaded from [`pipeline`] using the following task identifier:
+    `"object-detection"`.
 
     See the list of available models on [huggingface.co/models](https://huggingface.co/models?filter=object-detection).
     """

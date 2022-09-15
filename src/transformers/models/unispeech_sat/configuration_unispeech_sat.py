@@ -12,7 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" UniSpeechSat model configuration """
+""" UniSpeechSat model configuration"""
+
+import functools
+import operator
 
 from ...configuration_utils import PretrainedConfig
 from ...utils import logging
@@ -21,28 +24,31 @@ from ...utils import logging
 logger = logging.get_logger(__name__)
 
 UNISPEECH_SAT_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "facebook/unispeech_sat-base-960h": "https://huggingface.co/facebook/unispeech_sat-base-960h/resolve/main/config.json",
+    "microsoft/unispeech-sat-base-100h-libri-ft": (
+        "https://huggingface.co/microsoft/unispeech-sat-base-100h-libri-ft/resolve/main/config.json"
+    ),
     # See all UniSpeechSat models at https://huggingface.co/models?filter=unispeech_sat
 }
 
 
 class UniSpeechSatConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a [`UniSpeechSatModel`]. It is
-    used to instantiate an UniSpeechSat model according to the specified arguments, defining the model architecture.
-    Instantiating a configuration with the defaults will yield a similar configuration to that of the UniSpeechSat
-    [facebook/unispeech_sat-base-960h](https://huggingface.co/facebook/unispeech_sat-base-960h) architecture.
+    This is the configuration class to store the configuration of a [`UniSpeechSatModel`]. It is used to instantiate an
+    UniSpeechSat model according to the specified arguments, defining the model architecture. Instantiating a
+    configuration with the defaults will yield a similar configuration to that of the UniSpeechSat
+    [microsoft/unispeech-sat-base-100h-libri-ft](https://huggingface.co/microsoft/unispeech-sat-base-100h-libri-ft)
+    architecture.
 
-    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model
-    outputs. Read the documentation from [`PretrainedConfig`] for more information.
+    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
+    documentation from [`PretrainedConfig`] for more information.
 
 
     Args:
         vocab_size (`int`, *optional*, defaults to 32):
             Vocabulary size of the UniSpeechSat model. Defines the number of different tokens that can be represented
-            by the `inputs_ids` passed when calling [`UniSpeechSatModel`]. Vocabulary size of
-            the model. Defines the different tokens that can be represented by the *inputs_ids* passed to the forward
-            method of [`UniSpeechSatModel`].
+            by the `inputs_ids` passed when calling [`UniSpeechSatModel`]. Vocabulary size of the model. Defines the
+            different tokens that can be represented by the *inputs_ids* passed to the forward method of
+            [`UniSpeechSatModel`].
         hidden_size (`int`, *optional*, defaults to 768):
             Dimensionality of the encoder layers and the pooler layer.
         num_hidden_layers (`int`, *optional*, defaults to 12):
@@ -52,8 +58,8 @@ class UniSpeechSatConfig(PretrainedConfig):
         intermediate_size (`int`, *optional*, defaults to 3072):
             Dimensionality of the "intermediate" (i.e., feed-forward) layer in the Transformer encoder.
         hidden_act (`str` or `function`, *optional*, defaults to `"gelu"`):
-            The non-linear activation function (function or string) in the encoder and pooler. If string,
-            `"gelu"`, `"relu"`, `"selu"` and `"gelu_new"` are supported.
+            The non-linear activation function (function or string) in the encoder and pooler. If string, `"gelu"`,
+            `"relu"`, `"selu"` and `"gelu_new"` are supported.
         hidden_dropout (`float`, *optional*, defaults to 0.1):
             The dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
         attention_dropout (`float`, *optional*, defaults to 0.1):
@@ -65,25 +71,25 @@ class UniSpeechSatConfig(PretrainedConfig):
         layer_norm_eps (`float`, *optional*, defaults to 1e-12):
             The epsilon used by the layer normalization layers.
         feat_extract_norm (`str`, *optional*, defaults to `"group"`):
-            The norm to be applied to 1D convolutional layers in feature extractor. One of `"group"` for group
+            The norm to be applied to 1D convolutional layers in feature encoder. One of `"group"` for group
             normalization of only the first 1D convolutional layer or `"layer"` for layer normalization of all 1D
             convolutional layers.
         feat_proj_dropout (`float`, *optional*, defaults to 0.0):
-            The dropout probability for output of the feature extractor.
+            The dropout probability for output of the feature encoder.
         feat_extract_activation (`str, `optional`, defaults to `"gelu"`):
             The non-linear activation function (function or string) in the 1D convolutional layers of the feature
             extractor. If string, `"gelu"`, `"relu"`, `"selu"` and `"gelu_new"` are supported.
-        feat_quantizer_dropout (obj:*float*, *optional*, defaults to 0.0):
-            The dropout probabilitiy for quantized feature extractor states.
-        conv_dim (`Tuple[int]`, *optional*, defaults to `(512, 512, 512, 512, 512, 512, 512)`):
+        feat_quantizer_dropout (`float`, *optional*, defaults to 0.0):
+            The dropout probabilitiy for quantized feature encoder states.
+        conv_dim (`Tuple[int]` or `List[int]`, *optional*, defaults to `(512, 512, 512, 512, 512, 512, 512)`):
             A tuple of integers defining the number of input and output channels of each 1D convolutional layer in the
-            feature extractor. The length of *conv_dim* defines the number of 1D convolutional layers.
-        conv_stride (`Tuple[int]`, *optional*, defaults to `(5, 2, 2, 2, 2, 2, 2)`):
-            A tuple of integers defining the stride of each 1D convolutional layer in the feature extractor. The length
-            of *conv_stride* defines the number of convolutional layers and has to match the the length of *conv_dim*.
-        conv_kernel (`Tuple[int]`, *optional*, defaults to `(10, 3, 3, 3, 3, 3, 3)`):
-            A tuple of integers defining the kernel size of each 1D convolutional layer in the feature extractor. The
-            length of *conv_kernel* defines the number of convolutional layers and has to match the the length of
+            feature encoder. The length of *conv_dim* defines the number of 1D convolutional layers.
+        conv_stride (`Tuple[int]` or `List[int]`, *optional*, defaults to `(5, 2, 2, 2, 2, 2, 2)`):
+            A tuple of integers defining the stride of each 1D convolutional layer in the feature encoder. The length
+            of *conv_stride* defines the number of convolutional layers and has to match the length of *conv_dim*.
+        conv_kernel (`Tuple[int]` or `List[int]`, *optional*, defaults to `(10, 3, 3, 3, 3, 3, 3)`):
+            A tuple of integers defining the kernel size of each 1D convolutional layer in the feature encoder. The
+            length of *conv_kernel* defines the number of convolutional layers and has to match the length of
             *conv_dim*.
         conv_bias (`bool`, *optional*, defaults to `False`):
             Whether the 1D convolutional layers have a bias.
@@ -93,28 +99,32 @@ class UniSpeechSatConfig(PretrainedConfig):
         num_conv_pos_embedding_groups (`int`, *optional*, defaults to 16):
             Number of groups of 1D convolutional positional embeddings layer.
         do_stable_layer_norm (`bool`, *optional*, defaults to `False`):
-            Whether to apply *stable* layer norm architecture of the Transformer encoder. `do_stable_layer_norm is True` corresponds to applying layer norm before the attention layer, whereas `do_stable_layer_norm is False` corresponds to applying layer norm after the attention layer.
+            Whether to apply *stable* layer norm architecture of the Transformer encoder. `do_stable_layer_norm is
+            True` corresponds to applying layer norm before the attention layer, whereas `do_stable_layer_norm is
+            False` corresponds to applying layer norm after the attention layer.
         apply_spec_augment (`bool`, *optional*, defaults to `True`):
-            Whether to apply *SpecAugment* data augmentation to the outputs of the feature extractor. For reference see
-            [SpecAugment: A Simple Data Augmentation Method for Automatic Speech Recognition](https://arxiv.org/abs/1904.08779).
+            Whether to apply *SpecAugment* data augmentation to the outputs of the feature encoder. For reference see
+            [SpecAugment: A Simple Data Augmentation Method for Automatic Speech
+            Recognition](https://arxiv.org/abs/1904.08779).
         mask_time_prob (`float`, *optional*, defaults to 0.05):
             Percentage (between 0 and 1) of all feature vectors along the time axis which will be masked. The masking
             procecure generates ''mask_time_prob*len(time_axis)/mask_time_length'' independent masks over the axis. If
             reasoning from the propability of each feature vector to be chosen as the start of the vector span to be
-            masked, *mask_time_prob* should be `prob_vector_start*mask_time_length`. Note that overlap may decrease
-            the actual percentage of masked vectors. This is only relevant if `apply_spec_augment is True`.
+            masked, *mask_time_prob* should be `prob_vector_start*mask_time_length`. Note that overlap may decrease the
+            actual percentage of masked vectors. This is only relevant if `apply_spec_augment is True`.
         mask_time_length (`int`, *optional*, defaults to 10):
             Length of vector span along the time axis.
         mask_time_min_masks (`int`, *optional*, defaults to 2),:
-            The minimum number of masks of length `mask_feature_length` generated along the time axis, each time
-            step, irrespectively of `mask_feature_prob`. Only relevant if
-            ''mask_time_prob*len(time_axis)/mask_time_length < mask_time_min_masks''
+            The minimum number of masks of length `mask_feature_length` generated along the time axis, each time step,
+            irrespectively of `mask_feature_prob`. Only relevant if ''mask_time_prob*len(time_axis)/mask_time_length <
+            mask_time_min_masks''
         mask_feature_prob (`float`, *optional*, defaults to 0.0):
             Percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked. The
             masking procecure generates ''mask_feature_prob*len(feature_axis)/mask_time_length'' independent masks over
             the axis. If reasoning from the propability of each feature vector to be chosen as the start of the vector
-            span to be masked, *mask_feature_prob* should be `prob_vector_start*mask_feature_length`. Note that
-            overlap may decrease the actual percentage of masked vectors. This is only relevant if `apply_spec_augment is True`.
+            span to be masked, *mask_feature_prob* should be `prob_vector_start*mask_feature_length`. Note that overlap
+            may decrease the actual percentage of masked vectors. This is only relevant if `apply_spec_augment is
+            True`.
         mask_feature_length (`int`, *optional*, defaults to 10):
             Length of vector span along the feature axis.
         mask_feature_min_masks (`int`, *optional*, defaults to 0),:
@@ -128,7 +138,7 @@ class UniSpeechSatConfig(PretrainedConfig):
         contrastive_logits_temperature (`float`, *optional*, defaults to 0.1):
             The temperature *kappa* in the contrastive loss.
         feat_quantizer_dropout (`float`, *optional*, defaults to 0.0):
-            The dropout probabilitiy for the output of the feature extractor that's used by the quantizer.
+            The dropout probabilitiy for the output of the feature encoder that's used by the quantizer.
         num_negatives (`int`, *optional*, defaults to 100):
             Number of negative samples for the contrastive loss.
         codevector_dim (`int`, *optional*, defaults to 256):
@@ -141,21 +151,21 @@ class UniSpeechSatConfig(PretrainedConfig):
             Specifies the reduction to apply to the output of `torch.nn.CTCLoss`. Only relevant when training an
             instance of [`UniSpeechSatForCTC`].
         ctc_zero_infinity (`bool`, *optional*, defaults to `False`):
-            Whether to zero infinite losses and the associated gradients of `torch.nn.CTCLoss`. Infinite losses
-            mainly occur when the inputs are too short to be aligned to the targets. Only relevant when training an
-            instance of [`UniSpeechSatForCTC`].
+            Whether to zero infinite losses and the associated gradients of `torch.nn.CTCLoss`. Infinite losses mainly
+            occur when the inputs are too short to be aligned to the targets. Only relevant when training an instance
+            of [`UniSpeechSatForCTC`].
         use_weighted_layer_sum (`bool`, *optional*, defaults to `False`):
             Whether to use a weighted average of layer outputs with learned weights. Only relevant when using an
             instance of [`UniSpeechSatForSequenceClassification`].
         classifier_proj_size (`int`, *optional*, defaults to 256):
             Dimensionality of the projection before token mean-pooling for classification.
-        tdnn_dim (`Tuple[int]`, *optional*, defaults to `(512, 512, 512, 512, 1500)`):
+        tdnn_dim (`Tuple[int]` or `List[int]`, *optional*, defaults to `(512, 512, 512, 512, 1500)`):
             A tuple of integers defining the number of output channels of each 1D convolutional layer in the *TDNN*
             module of the *XVector* model. The length of *tdnn_dim* defines the number of *TDNN* layers.
-        tdnn_kernel (`Tuple[int]`, *optional*, defaults to `(5, 3, 3, 1, 1)`):
+        tdnn_kernel (`Tuple[int]` or `List[int]`, *optional*, defaults to `(5, 3, 3, 1, 1)`):
             A tuple of integers defining the kernel size of each 1D convolutional layer in the *TDNN* module of the
             *XVector* model. The length of *tdnn_kernel* has to match the length of *tdnn_dim*.
-        tdnn_dilation (`Tuple[int]`, *optional*, defaults to `(1, 2, 3, 1, 1)`):
+        tdnn_dilation (`Tuple[int]` or `List[int]`, *optional*, defaults to `(1, 2, 3, 1, 1)`):
             A tuple of integers defining the dilation factor of each 1D convolutional layer in *TDNN* module of the
             *XVector* model. The length of *tdnn_dilation* has to match the length of *tdnn_dim*.
         xvector_output_dim (`int`, *optional*, defaults to 512):
@@ -166,10 +176,10 @@ class UniSpeechSatConfig(PretrainedConfig):
     ```python
     >>> from transformers import UniSpeechSatModel, UniSpeechSatConfig
 
-    >>> # Initializing a UniSpeechSat facebook/unispeech_sat-base-960h style configuration
+    >>> # Initializing a UniSpeechSat microsoft/unispeech-sat-base-100h-libri-ft style configuration
     >>> configuration = UniSpeechSatConfig()
 
-    >>> # Initializing a model from the facebook/unispeech_sat-base-960h style configuration
+    >>> # Initializing a model from the microsoft/unispeech-sat-base-100h-libri-ft style configuration
     >>> model = UniSpeechSatModel(configuration)
 
     >>> # Accessing the model configuration
@@ -265,10 +275,10 @@ class UniSpeechSatConfig(PretrainedConfig):
             or (len(self.conv_dim) != self.num_feat_extract_layers)
         ):
             raise ValueError(
-                "Configuration for convolutional layers is incorrect. "
-                "It is required that `len(config.conv_dim)` == `len(config.conv_stride)` == `len(config.conv_kernel)`, "
-                f"but is `len(config.conv_dim) = {len(self.conv_dim)}`, `len(config.conv_stride) "
-                f"= {len(self.conv_stride)}`, `len(config.conv_kernel) = {len(self.conv_kernel)}`."
+                "Configuration for convolutional layers is incorrect. It is required that `len(config.conv_dim)` =="
+                " `len(config.conv_stride)` == `len(config.conv_kernel)`, but is `len(config.conv_dim) ="
+                f" {len(self.conv_dim)}`, `len(config.conv_stride) = {len(self.conv_stride)}`,"
+                f" `len(config.conv_kernel) = {len(self.conv_kernel)}`."
             )
 
         # fine-tuning config parameters for SpecAugment: https://arxiv.org/abs/1904.08779
@@ -302,3 +312,7 @@ class UniSpeechSatConfig(PretrainedConfig):
         self.tdnn_kernel = list(tdnn_kernel)
         self.tdnn_dilation = list(tdnn_dilation)
         self.xvector_output_dim = xvector_output_dim
+
+    @property
+    def inputs_to_logits_ratio(self):
+        return functools.reduce(operator.mul, self.conv_stride, 1)

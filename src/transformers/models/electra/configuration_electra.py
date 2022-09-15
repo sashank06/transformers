@@ -13,9 +13,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" ELECTRA model configuration """
+""" ELECTRA model configuration"""
+
+from collections import OrderedDict
+from typing import Mapping
 
 from ...configuration_utils import PretrainedConfig
+from ...onnx import OnnxConfig
 from ...utils import logging
 
 
@@ -25,28 +29,33 @@ ELECTRA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
     "google/electra-small-generator": "https://huggingface.co/google/electra-small-generator/resolve/main/config.json",
     "google/electra-base-generator": "https://huggingface.co/google/electra-base-generator/resolve/main/config.json",
     "google/electra-large-generator": "https://huggingface.co/google/electra-large-generator/resolve/main/config.json",
-    "google/electra-small-discriminator": "https://huggingface.co/google/electra-small-discriminator/resolve/main/config.json",
-    "google/electra-base-discriminator": "https://huggingface.co/google/electra-base-discriminator/resolve/main/config.json",
-    "google/electra-large-discriminator": "https://huggingface.co/google/electra-large-discriminator/resolve/main/config.json",
+    "google/electra-small-discriminator": (
+        "https://huggingface.co/google/electra-small-discriminator/resolve/main/config.json"
+    ),
+    "google/electra-base-discriminator": (
+        "https://huggingface.co/google/electra-base-discriminator/resolve/main/config.json"
+    ),
+    "google/electra-large-discriminator": (
+        "https://huggingface.co/google/electra-large-discriminator/resolve/main/config.json"
+    ),
 }
 
 
 class ElectraConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a [`ElectraModel`] or a
-    [`TFElectraModel`]. It is used to instantiate a ELECTRA model according to the specified
-    arguments, defining the model architecture. Instantiating a configuration with the defaults will yield a similar
-    configuration to that of the ELECTRA [google/electra-small-discriminator](https://huggingface.co/google/electra-small-discriminator) architecture.
+    This is the configuration class to store the configuration of a [`ElectraModel`] or a [`TFElectraModel`]. It is
+    used to instantiate a ELECTRA model according to the specified arguments, defining the model architecture.
+    Instantiating a configuration with the defaults will yield a similar configuration to that of the ELECTRA
+    [google/electra-small-discriminator](https://huggingface.co/google/electra-small-discriminator) architecture.
 
-    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model
-    outputs. Read the documentation from [`PretrainedConfig`] for more information.
+    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
+    documentation from [`PretrainedConfig`] for more information.
 
 
     Args:
         vocab_size (`int`, *optional*, defaults to 30522):
             Vocabulary size of the ELECTRA model. Defines the number of different tokens that can be represented by the
-            `inputs_ids` passed when calling [`ElectraModel`] or
-            [`TFElectraModel`].
+            `inputs_ids` passed when calling [`ElectraModel`] or [`TFElectraModel`].
         embedding_size (`int`, *optional*, defaults to 128):
             Dimensionality of the encoder layers and the pooler layer.
         hidden_size (`int`, *optional*, defaults to 256):
@@ -58,8 +67,8 @@ class ElectraConfig(PretrainedConfig):
         intermediate_size (`int`, *optional*, defaults to 1024):
             Dimensionality of the "intermediate" (i.e., feed-forward) layer in the Transformer encoder.
         hidden_act (`str` or `Callable`, *optional*, defaults to `"gelu"`):
-            The non-linear activation function (function or string) in the encoder and pooler. If string,
-            `"gelu"`, `"relu"`, `"silu"` and `"gelu_new"` are supported.
+            The non-linear activation function (function or string) in the encoder and pooler. If string, `"gelu"`,
+            `"relu"`, `"silu"` and `"gelu_new"` are supported.
         hidden_dropout_prob (`float`, *optional*, defaults to 0.1):
             The dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
         attention_probs_dropout_prob (`float`, *optional*, defaults to 0.1):
@@ -68,8 +77,7 @@ class ElectraConfig(PretrainedConfig):
             The maximum sequence length that this model might ever be used with. Typically set this to something large
             just in case (e.g., 512 or 1024 or 2048).
         type_vocab_size (`int`, *optional*, defaults to 2):
-            The vocabulary size of the `token_type_ids` passed when calling [`ElectraModel`] or
-            [`TFElectraModel`].
+            The vocabulary size of the `token_type_ids` passed when calling [`ElectraModel`] or [`TFElectraModel`].
         initializer_range (`float`, *optional*, defaults to 0.02):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
         layer_norm_eps (`float`, *optional*, defaults to 1e-12):
@@ -97,10 +105,11 @@ class ElectraConfig(PretrainedConfig):
 
             The dropout ratio to be used after the projection and activation.
         position_embedding_type (`str`, *optional*, defaults to `"absolute"`):
-            Type of position embedding. Choose one of `"absolute"`, `"relative_key"`,
-            `"relative_key_query"`. For positional embeddings use `"absolute"`. For more information on
-            `"relative_key"`, please refer to [Self-Attention with Relative Position Representations (Shaw et al.)](https://arxiv.org/abs/1803.02155). For more information on `"relative_key_query"`, please refer to
-            *Method 4* in [Improve Transformer Models with Better Relative Position Embeddings (Huang et al.)](https://arxiv.org/abs/2009.13658).
+            Type of position embedding. Choose one of `"absolute"`, `"relative_key"`, `"relative_key_query"`. For
+            positional embeddings use `"absolute"`. For more information on `"relative_key"`, please refer to
+            [Self-Attention with Relative Position Representations (Shaw et al.)](https://arxiv.org/abs/1803.02155).
+            For more information on `"relative_key_query"`, please refer to *Method 4* in [Improve Transformer Models
+            with Better Relative Position Embeddings (Huang et al.)](https://arxiv.org/abs/2009.13658).
         use_cache (`bool`, *optional*, defaults to `True`):
             Whether or not the model should return the last key/values attentions (not used by all models). Only
             relevant if `config.is_decoder=True`.
@@ -171,3 +180,19 @@ class ElectraConfig(PretrainedConfig):
         self.position_embedding_type = position_embedding_type
         self.use_cache = use_cache
         self.classifier_dropout = classifier_dropout
+
+
+class ElectraOnnxConfig(OnnxConfig):
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        if self.task == "multiple-choice":
+            dynamic_axis = {0: "batch", 1: "choice", 2: "sequence"}
+        else:
+            dynamic_axis = {0: "batch", 1: "sequence"}
+        return OrderedDict(
+            [
+                ("input_ids", dynamic_axis),
+                ("attention_mask", dynamic_axis),
+                ("token_type_ids", dynamic_axis),
+            ]
+        )

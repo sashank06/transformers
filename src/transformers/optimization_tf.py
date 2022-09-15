@@ -87,6 +87,8 @@ def create_optimizer(
     adam_beta1: float = 0.9,
     adam_beta2: float = 0.999,
     adam_epsilon: float = 1e-8,
+    adam_clipnorm: Optional[float] = None,
+    adam_global_clipnorm: Optional[float] = None,
     weight_decay_rate: float = 0.0,
     power: float = 1.0,
     include_in_weight_decay: Optional[List[str]] = None,
@@ -109,6 +111,11 @@ def create_optimizer(
             The beta2 to use in Adam.
         adam_epsilon (`float`, *optional*, defaults to 1e-8):
             The epsilon to use in Adam.
+        adam_clipnorm: (`float`, *optional*, defaults to `None`):
+            If not `None`, clip the gradient norm for each weight tensor to this value.
+        adam_global_clipnorm: (`float`, *optional*, defaults to `None`)
+            If not `None`, clip gradient norm to this value. When using this argument, the norm is computed over all
+            weight tensors, as if they were concatenated into a single vector.
         weight_decay_rate (`float`, *optional*, defaults to 0):
             The weight decay to use.
         power (`float`, *optional*, defaults to 1.0):
@@ -137,12 +144,19 @@ def create_optimizer(
             beta_1=adam_beta1,
             beta_2=adam_beta2,
             epsilon=adam_epsilon,
+            clipnorm=adam_clipnorm,
+            global_clipnorm=adam_global_clipnorm,
             exclude_from_weight_decay=["LayerNorm", "layer_norm", "bias"],
             include_in_weight_decay=include_in_weight_decay,
         )
     else:
         optimizer = tf.keras.optimizers.Adam(
-            learning_rate=lr_schedule, beta_1=adam_beta1, beta_2=adam_beta2, epsilon=adam_epsilon
+            learning_rate=lr_schedule,
+            beta_1=adam_beta1,
+            beta_2=adam_beta2,
+            epsilon=adam_epsilon,
+            clipnorm=adam_clipnorm,
+            global_clipnorm=adam_global_clipnorm,
         )
     # We return the optimizer and the LR scheduler in order to better track the
     # evolution of the LR independently of the optimizer.
@@ -153,7 +167,8 @@ class AdamWeightDecay(tf.keras.optimizers.Adam):
     """
     Adam enables L2 weight decay and clip_by_global_norm on gradients. Just adding the square of the weights to the
     loss function is *not* the correct way of using L2 regularization/weight decay with Adam, since that will interact
-    with the m and v parameters in strange ways as shown in [Decoupled Weight Decay Regularization](https://arxiv.org/abs/1711.05101).
+    with the m and v parameters in strange ways as shown in [Decoupled Weight Decay
+    Regularization](https://arxiv.org/abs/1711.05101).
 
     Instead we want ot decay the weights in a manner that doesn't interact with the m/v parameters. This is equivalent
     to adding the square of the weights to the loss with plain (non-momentum) SGD.
@@ -167,8 +182,9 @@ class AdamWeightDecay(tf.keras.optimizers.Adam):
             The beta2 parameter in Adam, which is the exponential decay rate for the 2nd momentum estimates.
         epsilon (`float`, *optional*, defaults to 1e-7):
             The epsilon parameter in Adam, which is a small constant for numerical stability.
-        amsgrad (`bool`, *optional*, default to *False*):
-            Whether to apply AMSGrad variant of this algorithm or not, see [On the Convergence of Adam and Beyond](https://arxiv.org/abs/1904.09237).
+        amsgrad (`bool`, *optional*, default to `False`):
+            Whether to apply AMSGrad variant of this algorithm or not, see [On the Convergence of Adam and
+            Beyond](https://arxiv.org/abs/1904.09237).
         weight_decay_rate (`float`, *optional*, defaults to 0):
             The weight decay to apply.
         include_in_weight_decay (`List[str]`, *optional*):
@@ -180,10 +196,10 @@ class AdamWeightDecay(tf.keras.optimizers.Adam):
         name (`str`, *optional*, defaults to 'AdamWeightDecay'):
             Optional name for the operations created when applying gradients.
         kwargs:
-            Keyword arguments. Allowed to be {`clipnorm`, `clipvalue`, `lr`, `decay`}. `clipnorm` is clip
-            gradients by norm; `clipvalue` is clip gradients by value, `decay` is included for backward
-            compatibility to allow time inverse decay of learning rate. `lr` is included for backward compatibility,
-            recommended to use `learning_rate` instead.
+            Keyword arguments. Allowed to be {`clipnorm`, `clipvalue`, `lr`, `decay`}. `clipnorm` is clip gradients by
+            norm; `clipvalue` is clip gradients by value, `decay` is included for backward compatibility to allow time
+            inverse decay of learning rate. `lr` is included for backward compatibility, recommended to use
+            `learning_rate` instead.
     """
 
     def __init__(

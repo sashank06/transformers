@@ -18,6 +18,7 @@
 import itertools
 import json
 import os
+from collections.abc import Mapping
 from shutil import copyfile
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -25,7 +26,6 @@ import numpy as np
 
 import sentencepiece as spm
 
-from ...file_utils import add_end_docstrings, is_tf_available, is_torch_available
 from ...tokenization_utils import PreTrainedTokenizer
 from ...tokenization_utils_base import (
     ENCODE_KWARGS_DOCSTRING,
@@ -41,7 +41,7 @@ from ...tokenization_utils_base import (
     _is_torch,
     to_py_obj,
 )
-from ...utils import logging
+from ...utils import add_end_docstrings, is_tf_available, is_torch_available, logging
 
 
 logger = logging.get_logger(__name__)
@@ -84,31 +84,30 @@ ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING = r"""
                 [What are attention masks?](../glossary#attention-mask)
             return_overflowing_tokens (`bool`, *optional*, defaults to `False`):
                 Whether or not to return overflowing token sequences. If a pair of sequences of input ids (or a batch
-                of pairs) is provided with `truncation_strategy = longest_first` or `True`, an error is
-                raised instead of returning overflowing tokens.
+                of pairs) is provided with `truncation_strategy = longest_first` or `True`, an error is raised instead
+                of returning overflowing tokens.
             return_special_tokens_mask (`bool`, *optional*, defaults to `False`):
                 Whether or not to return special tokens mask information.
             return_offsets_mapping (`bool`, *optional*, defaults to `False`):
                 Whether or not to return `(char_start, char_end)` for each token.
 
-                This is only available on fast tokenizers inheriting from
-                [`PreTrainedTokenizerFast`], if using Python's tokenizer, this method will raise
-                `NotImplementedError`.
+                This is only available on fast tokenizers inheriting from [`PreTrainedTokenizerFast`], if using
+                Python's tokenizer, this method will raise `NotImplementedError`.
             return_length  (`bool`, *optional*, defaults to `False`):
                 Whether or not to return the lengths of the encoded inputs.
             verbose (`bool`, *optional*, defaults to `True`):
                 Whether or not to print more information and warnings.
             **kwargs: passed to the `self.tokenize()` method
 
-            Return:
+        Return:
             [`BatchEncoding`]: A [`BatchEncoding`] with the following fields:
 
             - **input_ids** -- List of token ids to be fed to a model.
 
               [What are input IDs?](../glossary#input-ids)
 
-            - **token_type_ids** -- List of token type ids to be fed to a model (when `return_token_type_ids=True`
-              or if *"token_type_ids"* is in `self.model_input_names`).
+            - **token_type_ids** -- List of token type ids to be fed to a model (when `return_token_type_ids=True` or
+              if *"token_type_ids"* is in `self.model_input_names`).
 
               [What are token type IDs?](../glossary#token-type-ids)
 
@@ -129,8 +128,7 @@ ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING = r"""
               [What are token type IDs?](../glossary#token-type-ids)
 
             - **entity_attention_mask** -- List of indices specifying which entities should be attended to by the model
-              (when `return_attention_mask=True` or if *"entity_attention_mask"* is in
-              `self.model_input_names`).
+              (when `return_attention_mask=True` or if *"entity_attention_mask"* is in `self.model_input_names`).
 
               [What are attention masks?](../glossary#attention-mask)
 
@@ -154,8 +152,8 @@ class MLukeTokenizer(PreTrainedTokenizer):
     Adapted from [`XLMRobertaTokenizer`] and [`LukeTokenizer`]. Based on
     [SentencePiece](https://github.com/google/sentencepiece).
 
-    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods.
-    Users should refer to this superclass for more information regarding those methods.
+    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
+    this superclass for more information regarding those methods.
 
     Args:
         vocab_file (`str`):
@@ -177,8 +175,8 @@ class MLukeTokenizer(PreTrainedTokenizer):
 
             <Tip>
 
-            When building a sequence using special tokens, this is not the token that is used for the end of
-            sequence. The token used is the `sep_token`.
+            When building a sequence using special tokens, this is not the token that is used for the end of sequence.
+            The token used is the `sep_token`.
 
             </Tip>
 
@@ -199,8 +197,8 @@ class MLukeTokenizer(PreTrainedTokenizer):
             modeling. This is the token which the model will try to predict.
         task (`str`, *optional*):
             Task for which you want to prepare sequences. One of `"entity_classification"`,
-            `"entity_pair_classification"`, or `"entity_span_classification"`. If you specify this argument,
-            the entity sequence is automatically created based on the given entity span(s).
+            `"entity_pair_classification"`, or `"entity_span_classification"`. If you specify this argument, the entity
+            sequence is automatically created based on the given entity span(s).
         max_entity_length (`int`, *optional*, defaults to 32):
             The maximum length of `entity_ids`.
         max_mention_length (`int`, *optional*, defaults to 30):
@@ -214,7 +212,9 @@ class MLukeTokenizer(PreTrainedTokenizer):
         additional_special_tokens (`List[str]`, *optional*, defaults to `["<s>NOTUSED", "</s>NOTUSED"]`):
             Additional special tokens used by the tokenizer.
         sp_model_kwargs (`dict`, *optional*):
-            Will be passed to the `SentencePieceProcessor.__init__()` method. The [Python wrapper for SentencePiece](https://github.com/google/sentencepiece/tree/master/python) can be used, among other things, to set:
+            Will be passed to the `SentencePieceProcessor.__init__()` method. The [Python wrapper for
+            SentencePiece](https://github.com/google/sentencepiece/tree/master/python) can be used, among other things,
+            to set:
 
             - `enable_sampling`: Enable subword regularization.
             - `nbest_size`: Sampling parameters for unigram. Invalid for BPE-Dropout.
@@ -253,6 +253,10 @@ class MLukeTokenizer(PreTrainedTokenizer):
         max_mention_length=30,
         entity_token_1="<ent>",
         entity_token_2="<ent2>",
+        entity_unk_token="[UNK]",
+        entity_pad_token="[PAD]",
+        entity_mask_token="[MASK]",
+        entity_mask2_token="[MASK2]",
         sp_model_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
@@ -290,6 +294,10 @@ class MLukeTokenizer(PreTrainedTokenizer):
             max_mention_length=max_mention_length,
             entity_token_1=entity_token_1,
             entity_token_2=entity_token_2,
+            entity_unk_token=entity_unk_token,
+            entity_pad_token=entity_pad_token,
+            entity_mask_token=entity_mask_token,
+            entity_mask2_token=entity_mask2_token,
             **kwargs,
         )
 
@@ -314,6 +322,16 @@ class MLukeTokenizer(PreTrainedTokenizer):
 
         with open(entity_vocab_file, encoding="utf-8") as entity_vocab_handle:
             self.entity_vocab = json.load(entity_vocab_handle)
+        for entity_special_token in [entity_unk_token, entity_pad_token, entity_mask_token, entity_mask2_token]:
+            if entity_special_token not in self.entity_vocab:
+                raise ValueError(
+                    f"Specified entity special token ``{entity_special_token}`` is not found in entity_vocab. "
+                    f"Probably an incorrect entity vocab file is loaded: {entity_vocab_file}."
+                )
+        self.entity_unk_token_id = self.entity_vocab[entity_unk_token]
+        self.entity_pad_token_id = self.entity_vocab[entity_pad_token]
+        self.entity_mask_token_id = self.entity_vocab[entity_mask_token]
+        self.entity_mask2_token_id = self.entity_vocab[entity_mask2_token]
 
         self.task = task
         if task is None or task == "entity_span_classification":
@@ -324,7 +342,8 @@ class MLukeTokenizer(PreTrainedTokenizer):
             self.max_entity_length = 2
         else:
             raise ValueError(
-                f"Task {task} not supported. Select task from ['entity_classification', 'entity_pair_classification', 'entity_span_classification'] only."
+                f"Task {task} not supported. Select task from ['entity_classification', 'entity_pair_classification',"
+                " 'entity_span_classification'] only."
             )
 
         self.max_mention_length = max_mention_length
@@ -387,9 +406,9 @@ class MLukeTokenizer(PreTrainedTokenizer):
             entity_spans (`List[Tuple[int, int]]`, `List[List[Tuple[int, int]]]`, *optional*):
                 The sequence or batch of sequences of entity spans to be encoded. Each sequence consists of tuples each
                 with two integers denoting character-based start and end positions of entities. If you specify
-                `"entity_classification"` or `"entity_pair_classification"` as the `task` argument in the
-                constructor, the length of each sequence must be 1 or 2, respectively. If you specify `entities`, the
-                length of each sequence must be equal to the length of each sequence of `entities`.
+                `"entity_classification"` or `"entity_pair_classification"` as the `task` argument in the constructor,
+                the length of each sequence must be 1 or 2, respectively. If you specify `entities`, the length of each
+                sequence must be equal to the length of each sequence of `entities`.
             entity_spans_pair (`List[Tuple[int, int]]`, `List[List[Tuple[int, int]]]`, *optional*):
                 The sequence or batch of sequences of entity spans to be encoded. Each sequence consists of tuples each
                 with two integers denoting character-based start and end positions of entities. If you specify the
@@ -398,15 +417,15 @@ class MLukeTokenizer(PreTrainedTokenizer):
             entities (`List[str]`, `List[List[str]]`, *optional*):
                 The sequence or batch of sequences of entities to be encoded. Each sequence consists of strings
                 representing entities, i.e., special entities (e.g., [MASK]) or entity titles of Wikipedia (e.g., Los
-                Angeles). This argument is ignored if you specify the `task` argument in the constructor. The length
-                of each sequence must be equal to the length of each sequence of `entity_spans`. If you specify
+                Angeles). This argument is ignored if you specify the `task` argument in the constructor. The length of
+                each sequence must be equal to the length of each sequence of `entity_spans`. If you specify
                 `entity_spans` without specifying this argument, the entity sequence or the batch of entity sequences
                 is automatically constructed by filling it with the [MASK] entity.
             entities_pair (`List[str]`, `List[List[str]]`, *optional*):
                 The sequence or batch of sequences of entities to be encoded. Each sequence consists of strings
                 representing entities, i.e., special entities (e.g., [MASK]) or entity titles of Wikipedia (e.g., Los
-                Angeles). This argument is ignored if you specify the `task` argument in the constructor. The length
-                of each sequence must be equal to the length of each sequence of `entity_spans_pair`. If you specify
+                Angeles). This argument is ignored if you specify the `task` argument in the constructor. The length of
+                each sequence must be equal to the length of each sequence of `entity_spans_pair`. If you specify
                 `entity_spans_pair` without specifying this argument, the entity sequence or the batch of entity
                 sequences is automatically constructed by filling it with the [MASK] entity.
             max_entity_length (`int`, *optional*):
@@ -689,7 +708,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
             raise ValueError("entity_spans should be given as a list")
         elif len(entity_spans) > 0 and not isinstance(entity_spans[0], tuple):
             raise ValueError(
-                "entity_spans should be given as a list of tuples " "containing the start and end character indices"
+                "entity_spans should be given as a list of tuples containing the start and end character indices"
             )
 
         if entities is not None:
@@ -753,8 +772,6 @@ class MLukeTokenizer(PreTrainedTokenizer):
         first_entity_token_spans, second_entity_token_spans = None, None
 
         if self.task is None:
-            unk_entity_id = self.entity_vocab["[UNK]"]
-            mask_entity_id = self.entity_vocab["[MASK]"]
 
             if entity_spans is None:
                 first_ids = get_input_ids(text)
@@ -763,9 +780,9 @@ class MLukeTokenizer(PreTrainedTokenizer):
 
                 first_ids, first_entity_token_spans = get_input_ids_and_entity_token_spans(text, entity_spans)
                 if entities is None:
-                    first_entity_ids = [mask_entity_id] * len(entity_spans)
+                    first_entity_ids = [self.entity_mask_token_id] * len(entity_spans)
                 else:
-                    first_entity_ids = [self.entity_vocab.get(entity, unk_entity_id) for entity in entities]
+                    first_entity_ids = [self.entity_vocab.get(entity, self.entity_unk_token_id) for entity in entities]
 
             if text_pair is not None:
                 if entity_spans_pair is None:
@@ -777,9 +794,11 @@ class MLukeTokenizer(PreTrainedTokenizer):
                         text_pair, entity_spans_pair
                     )
                     if entities_pair is None:
-                        second_entity_ids = [mask_entity_id] * len(entity_spans_pair)
+                        second_entity_ids = [self.entity_mask_token_id] * len(entity_spans_pair)
                     else:
-                        second_entity_ids = [self.entity_vocab.get(entity, unk_entity_id) for entity in entities_pair]
+                        second_entity_ids = [
+                            self.entity_vocab.get(entity, self.entity_unk_token_id) for entity in entities_pair
+                        ]
 
         elif self.task == "entity_classification":
             if not (isinstance(entity_spans, list) and len(entity_spans) == 1 and isinstance(entity_spans[0], tuple)):
@@ -787,7 +806,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
                     "Entity spans should be a list containing a single tuple "
                     "containing the start and end character indices of an entity"
                 )
-            first_entity_ids = [self.entity_vocab["[MASK]"]]
+            first_entity_ids = [self.entity_mask_token_id]
             first_ids, first_entity_token_spans = get_input_ids_and_entity_token_spans(text, entity_spans)
 
             # add special tokens to input ids
@@ -815,7 +834,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
                 )
 
             head_span, tail_span = entity_spans
-            first_entity_ids = [self.entity_vocab["[MASK]"], self.entity_vocab["[MASK2]"]]
+            first_entity_ids = [self.entity_mask_token_id, self.entity_mask2_token_id]
             first_ids, first_entity_token_spans = get_input_ids_and_entity_token_spans(text, entity_spans)
 
             head_token_span, tail_token_span = first_entity_token_spans
@@ -836,7 +855,6 @@ class MLukeTokenizer(PreTrainedTokenizer):
                 first_ids = first_ids[:entity_token_start] + [special_token_id] + first_ids[entity_token_start:]
 
         elif self.task == "entity_span_classification":
-            mask_entity_id = self.entity_vocab["[MASK]"]
 
             if not (isinstance(entity_spans, list) and len(entity_spans) > 0 and isinstance(entity_spans[0], tuple)):
                 raise ValueError(
@@ -845,7 +863,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
                 )
 
             first_ids, first_entity_token_spans = get_input_ids_and_entity_token_spans(text, entity_spans)
-            first_entity_ids = [mask_entity_id] * len(entity_spans)
+            first_entity_ids = [self.entity_mask_token_id] * len(entity_spans)
 
         else:
             raise ValueError(f"Task {self.task} not supported")
@@ -974,8 +992,8 @@ class MLukeTokenizer(PreTrainedTokenizer):
         Prepares a sequence of input id, entity id and entity span, or a pair of sequences of inputs ids, entity ids,
         entity spans so that it can be used by the model. It adds special tokens, truncates sequences if overflowing
         while taking into account the special tokens and manages a moving window (with user defined stride) for
-        overflowing tokens. Please Note, for *pair_ids* different than *None* and *truncation_strategy = longest_first*
-        or *True*, it is not possible to return overflowing tokens. Such a combination of arguments will raise an
+        overflowing tokens. Please Note, for *pair_ids* different than `None` and *truncation_strategy = longest_first*
+        or `True`, it is not possible to return overflowing tokens. Such a combination of arguments will raise an
         error.
 
         Args:
@@ -1102,7 +1120,8 @@ class MLukeTokenizer(PreTrainedTokenizer):
 
             if num_invalid_entities != 0:
                 logger.warning(
-                    f"{num_invalid_entities} entities are ignored because their entity spans are invalid due to the truncation of input tokens"
+                    f"{num_invalid_entities} entities are ignored because their entity spans are invalid due to the"
+                    " truncation of input tokens"
                 )
 
             if truncation_strategy != TruncationStrategy.DO_NOT_TRUNCATE and total_entity_len > max_entity_length:
@@ -1127,7 +1146,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
             entity_position_ids = []
             entity_start_positions = []
             entity_end_positions = []
-            for (token_spans, offset) in (
+            for token_spans, offset in (
                 (valid_entity_token_spans, entity_token_offset),
                 (valid_pair_entity_token_spans, pair_entity_token_offset),
             ):
@@ -1193,27 +1212,28 @@ class MLukeTokenizer(PreTrainedTokenizer):
         """
         Pad a single encoded input or a batch of encoded inputs up to predefined length or to the max sequence length
         in the batch. Padding side (left/right) padding token ids are defined at the tokenizer level (with
-        `self.padding_side`, `self.pad_token_id` and `self.pad_token_type_id`) .. note:: If the
-        `encoded_inputs` passed are dictionary of numpy arrays, PyTorch tensors or TensorFlow tensors, the result
-        will use the same type unless you provide a different tensor type with `return_tensors`. In the case of
-        PyTorch tensors, you will lose the specific device of your tensors however.
+        `self.padding_side`, `self.pad_token_id` and `self.pad_token_type_id`) .. note:: If the `encoded_inputs` passed
+        are dictionary of numpy arrays, PyTorch tensors or TensorFlow tensors, the result will use the same type unless
+        you provide a different tensor type with `return_tensors`. In the case of PyTorch tensors, you will lose the
+        specific device of your tensors however.
 
         Args:
             encoded_inputs ([`BatchEncoding`], list of [`BatchEncoding`], `Dict[str, List[int]]`, `Dict[str, List[List[int]]` or `List[Dict[str, List[int]]]`):
-                Tokenized inputs. Can represent one input ([`BatchEncoding`] or `Dict[str, List[int]]`) or a batch of tokenized inputs (list of [`BatchEncoding`], *Dict[str,
-                List[List[int]]]* or *List[Dict[str, List[int]]]*) so you can use this method during preprocessing as
-                well as in a PyTorch Dataloader collate function. Instead of `List[int]` you can have tensors
-                (numpy arrays, PyTorch tensors or TensorFlow tensors), see the note above for the return type.
-            padding (`bool`, `str` or [`~file_utils.PaddingStrategy`], *optional*, defaults to `True`):
+                Tokenized inputs. Can represent one input ([`BatchEncoding`] or `Dict[str, List[int]]`) or a batch of
+                tokenized inputs (list of [`BatchEncoding`], *Dict[str, List[List[int]]]* or *List[Dict[str,
+                List[int]]]*) so you can use this method during preprocessing as well as in a PyTorch Dataloader
+                collate function. Instead of `List[int]` you can have tensors (numpy arrays, PyTorch tensors or
+                TensorFlow tensors), see the note above for the return type.
+            padding (`bool`, `str` or [`~utils.PaddingStrategy`], *optional*, defaults to `True`):
                  Select a strategy to pad the returned sequences (according to the model's padding side and padding
                  index) among:
 
-                - `True` or `'longest'`: Pad to the longest sequence in the batch (or no padding if only a
-                  single sequence if provided).
-                - `'max_length'`: Pad to a maximum length specified with the argument `max_length` or to the
-                  maximum acceptable input length for the model if that argument is not provided.
-                - `False` or `'do_not_pad'` (default): No padding (i.e., can output a batch with sequences of
-                  different lengths).
+                - `True` or `'longest'`: Pad to the longest sequence in the batch (or no padding if only a single
+                  sequence if provided).
+                - `'max_length'`: Pad to a maximum length specified with the argument `max_length` or to the maximum
+                  acceptable input length for the model if that argument is not provided.
+                - `False` or `'do_not_pad'` (default): No padding (i.e., can output a batch with sequences of different
+                  lengths).
             max_length (`int`, *optional*):
                 Maximum length of the returned list and optionally padding length (see above).
             max_entity_length (`int`, *optional*):
@@ -1223,9 +1243,9 @@ class MLukeTokenizer(PreTrainedTokenizer):
                 the use of Tensor Cores on NVIDIA hardware with compute capability >= 7.5 (Volta).
             return_attention_mask (`bool`, *optional*):
                 Whether to return the attention mask. If left to the default, will return the attention mask according
-                to the specific tokenizer's default, defined by the `return_outputs` attribute. [What are
-                attention masks?](../glossary#attention-mask)
-            return_tensors (`str` or [`~file_utils.TensorType`], *optional*):
+                to the specific tokenizer's default, defined by the `return_outputs` attribute. [What are attention
+                masks?](../glossary#attention-mask)
+            return_tensors (`str` or [`~utils.TensorType`], *optional*):
                 If set, will return tensors instead of list of python integers. Acceptable values are:
 
                 - `'tf'`: Return TensorFlow `tf.constant` objects.
@@ -1236,7 +1256,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
         """
         # If we have a list of dicts, let's convert it in a dict of lists
         # We do this to allow using this method as a collate_fn function in PyTorch Dataloader
-        if isinstance(encoded_inputs, (list, tuple)) and isinstance(encoded_inputs[0], (dict, BatchEncoding)):
+        if isinstance(encoded_inputs, (list, tuple)) and isinstance(encoded_inputs[0], Mapping):
             encoded_inputs = {key: [example[key] for example in encoded_inputs] for key in encoded_inputs[0].keys()}
 
         # The model's main input name, usually `input_ids`, has be passed for padding
@@ -1276,7 +1296,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
             else:
                 raise ValueError(
                     f"type of {first_element} unknown: {type(first_element)}. "
-                    f"Should be one of a python, numpy, pytorch or tensorflow object."
+                    "Should be one of a python, numpy, pytorch or tensorflow object."
                 )
 
             for key, value in encoded_inputs.items():
@@ -1347,7 +1367,8 @@ class MLukeTokenizer(PreTrainedTokenizer):
 
 
         Args:
-            encoded_inputs: Dictionary of tokenized inputs (`List[int]`) or batch of tokenized inputs (`List[List[int]]`).
+            encoded_inputs:
+                Dictionary of tokenized inputs (`List[int]`) or batch of tokenized inputs (`List[List[int]]`).
             max_length: maximum length of the returned list and optionally padding length (see below).
                 Will truncate by taking into account the special tokens.
             max_entity_length: The maximum length of the entity sequence.
@@ -1365,7 +1386,8 @@ class MLukeTokenizer(PreTrainedTokenizer):
             pad_to_multiple_of: (optional) Integer if set will pad the sequence to a multiple of the provided value.
                 This is especially useful to enable the use of Tensor Core on NVIDIA hardware with compute capability
                 >= 7.5 (Volta).
-            return_attention_mask: (optional) Set to False to avoid returning attention mask (default: set to model specifics)
+            return_attention_mask:
+                (optional) Set to False to avoid returning attention mask (default: set to model specifics)
         """
         entities_provided = bool("entity_ids" in encoded_inputs)
 
@@ -1422,7 +1444,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
                 encoded_inputs["input_ids"] = encoded_inputs["input_ids"] + [self.pad_token_id] * difference
                 if entities_provided:
                     encoded_inputs["entity_ids"] = (
-                        encoded_inputs["entity_ids"] + [self.entity_vocab["[PAD]"]] * entity_difference
+                        encoded_inputs["entity_ids"] + [self.entity_pad_token_id] * entity_difference
                     )
                     encoded_inputs["entity_position_ids"] = (
                         encoded_inputs["entity_position_ids"] + [[-1] * self.max_mention_length] * entity_difference
@@ -1452,7 +1474,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
                     encoded_inputs["special_tokens_mask"] = [1] * difference + encoded_inputs["special_tokens_mask"]
                 encoded_inputs["input_ids"] = [self.pad_token_id] * difference + encoded_inputs["input_ids"]
                 if entities_provided:
-                    encoded_inputs["entity_ids"] = [self.entity_vocab["[PAD]"]] * entity_difference + encoded_inputs[
+                    encoded_inputs["entity_ids"] = [self.entity_pad_token_id] * entity_difference + encoded_inputs[
                         "entity_ids"
                     ]
                     encoded_inputs["entity_position_ids"] = [
@@ -1487,7 +1509,7 @@ class MLukeTokenizer(PreTrainedTokenizer):
         )
 
         with open(entity_vocab_file, "w", encoding="utf-8") as f:
-            f.write(json.dumps(self.entity_vocab, ensure_ascii=False))
+            f.write(json.dumps(self.entity_vocab, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
 
         return out_vocab_file, entity_vocab_file
 

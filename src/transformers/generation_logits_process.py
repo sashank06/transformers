@@ -15,13 +15,12 @@
 
 import inspect
 import math
-from abc import ABC
-from typing import Callable, Iterable, List, Optional
+from typing import Callable, Iterable, List, Optional, Tuple
 
 import numpy as np
 import torch
 
-from .file_utils import add_start_docstrings
+from .utils import add_start_docstrings
 from .utils.logging import get_logger
 
 
@@ -33,9 +32,8 @@ LOGITS_PROCESSOR_INPUTS_DOCSTRING = r"""
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary.
 
-            Indices can be obtained using [`BertTokenizer`]. See
-            [`PreTrainedTokenizer.encode`] and [`PreTrainedTokenizer.__call__`] for
-            details.
+            Indices can be obtained using [`BertTokenizer`]. See [`PreTrainedTokenizer.encode`] and
+            [`PreTrainedTokenizer.__call__`] for details.
 
             [What are input IDs?](../glossary#input-ids)
         scores (`torch.FloatTensor` of shape `(batch_size, config.vocab_size)`):
@@ -50,7 +48,7 @@ LOGITS_PROCESSOR_INPUTS_DOCSTRING = r"""
 """
 
 
-class LogitsProcessor(ABC):
+class LogitsProcessor:
     """Abstract base class for all logit processors that can be applied during generation."""
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
@@ -61,7 +59,7 @@ class LogitsProcessor(ABC):
         )
 
 
-class LogitsWarper(ABC):
+class LogitsWarper:
     """Abstract base class for all logit warpers that can be applied during generation with multinomial sampling."""
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
@@ -74,10 +72,9 @@ class LogitsWarper(ABC):
 
 class LogitsProcessorList(list):
     """
-    This class can be used to create a list of [`LogitsProcessor`] or
-    [`LogitsWarper`] to subsequently process a `scores` input tensor. This class inherits from
-    list and adds a specific *__call__* method to apply each [`LogitsProcessor`] or
-    [`LogitsWarper`] to the inputs.
+    This class can be used to create a list of [`LogitsProcessor`] or [`LogitsWarper`] to subsequently process a
+    `scores` input tensor. This class inherits from list and adds a specific *__call__* method to apply each
+    [`LogitsProcessor`] or [`LogitsWarper`] to the inputs.
     """
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
@@ -150,7 +147,8 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
 
     Args:
         repetition_penalty (`float`):
-            The parameter for repetition penalty. 1.0 means no penalty. See [this paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
+            The parameter for repetition penalty. 1.0 means no penalty. See [this
+            paper](https://arxiv.org/pdf/1909.05858.pdf) for more details.
     """
 
     def __init__(self, penalty: float):
@@ -171,13 +169,12 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
 
 class TopPLogitsWarper(LogitsWarper):
     """
-    [`LogitsWarper`] that performs top-p, i.e. restricting to top tokens summing to prob_cut_off <=
-    prob_cut_off.
+    [`LogitsWarper`] that performs top-p, i.e. restricting to top tokens summing to prob_cut_off <= prob_cut_off.
 
     Args:
         top_p (`float`):
-            If set to < 1, only the most probable tokens with probabilities that add up to `top_p` or higher are
-            kept for generation.
+            If set to < 1, only the most probable tokens with probabilities that add up to `top_p` or higher are kept
+            for generation.
         filter_value (`float`, *optional*, defaults to `-float("Inf")`):
             All filtered values will be set to this float value.
         min_tokens_to_keep (`int`, *optional*, defaults to 1):
@@ -241,6 +238,42 @@ class TopKLogitsWarper(LogitsWarper):
         return scores
 
 
+class TypicalLogitsWarper(LogitsWarper):
+    def __init__(self, mass: float = 0.9, filter_value: float = -float("Inf"), min_tokens_to_keep: int = 1):
+        mass = float(mass)
+        if not (mass > 0 and mass < 1):
+            raise ValueError(f"`typical_p` has to be a float > 0 and < 1, but is {mass}")
+
+        self.filter_value = filter_value
+        self.mass = mass
+        self.min_tokens_to_keep = min_tokens_to_keep
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+
+        # calculate entropy
+        normalized = torch.nn.functional.log_softmax(scores, dim=-1)
+        p = torch.exp(normalized)
+        ent = -(normalized * p).nansum(-1, keepdim=True)
+
+        # shift and sort
+        shifted_scores = torch.abs((-normalized) - ent)
+        sorted_scores, sorted_indices = torch.sort(shifted_scores, descending=False)
+        sorted_logits = scores.gather(-1, sorted_indices)
+        cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
+
+        # Remove tokens with cumulative mass above the threshold
+        last_ind = (cumulative_probs < self.mass).sum(dim=1)
+        last_ind[last_ind < 0] = 0
+        sorted_indices_to_remove = sorted_scores > sorted_scores.gather(1, last_ind.view(-1, 1))
+        if self.min_tokens_to_keep > 1:
+            # Keep at least min_tokens_to_keep (set to min_tokens_to_keep-1 because we add the first one below)
+            sorted_indices_to_remove[..., : self.min_tokens_to_keep] = 0
+        indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+
+        scores = scores.masked_fill(indices_to_remove, self.filter_value)
+        return scores
+
+
 def _get_ngrams(ngram_size: int, prev_input_ids: torch.Tensor, num_hypos: int):
     generated_ngrams = [{} for _ in range(num_hypos)]
     for idx in range(num_hypos):
@@ -278,7 +311,8 @@ def _calc_banned_ngram_tokens(
 
 class NoRepeatNGramLogitsProcessor(LogitsProcessor):
     r"""
-    [`LogitsProcessor`] that enforces no repetition of n-grams. See [Fairseq](https://github.com/pytorch/fairseq/blob/a07cb6f40480928c9e0548b737aadd36ee66ac76/fairseq/sequence_generator.py#L345).
+    [`LogitsProcessor`] that enforces no repetition of n-grams. See
+    [Fairseq](https://github.com/pytorch/fairseq/blob/a07cb6f40480928c9e0548b737aadd36ee66ac76/fairseq/sequence_generator.py#L345).
 
     Args:
         ngram_size (`int`):
@@ -303,8 +337,8 @@ class NoRepeatNGramLogitsProcessor(LogitsProcessor):
 
 class EncoderNoRepeatNGramLogitsProcessor(LogitsProcessor):
     r"""
-    [`LogitsProcessor`] that enforces no repetition of encoder input ids n-grams for the decoder ids.
-    See [ParlAI](https://github.com/facebookresearch/ParlAI/blob/master/parlai/core/torch_generator_agent.py#L1350).
+    [`LogitsProcessor`] that enforces no repetition of encoder input ids n-grams for the decoder ids. See
+    [ParlAI](https://github.com/facebookresearch/ParlAI/blob/master/parlai/core/torch_generator_agent.py#L1350).
 
     Args:
         encoder_ngram_size (`int`):
@@ -348,8 +382,9 @@ class NoBadWordsLogitsProcessor(LogitsProcessor):
 
     Args:
         bad_words_ids (`List[List[int]]`):
-            List of list of token ids that are not allowed to be generated. In order to get the tokens of the words
-            that should not appear in the generated text, use `tokenizer(bad_word, add_prefix_space=True).input_ids`.
+            List of list of token ids that are not allowed to be generated. In order to get the token ids of the words
+            that should not appear in the generated text, use `tokenizer(bad_words, add_prefix_space=True,
+            add_special_tokens=False).input_ids`.
         eos_token_id (`int`):
             The id of the *end-of-sequence* token.
     """
@@ -357,7 +392,7 @@ class NoBadWordsLogitsProcessor(LogitsProcessor):
     def __init__(self, bad_words_ids: List[List[int]], eos_token_id: int):
 
         if not isinstance(bad_words_ids, List) or len(bad_words_ids) == 0:
-            raise ValueError(f"`bad_words_ids` has to be a non-emtpy list, but is {bad_words_ids}.")
+            raise ValueError(f"`bad_words_ids` has to be a non-empty list, but is {bad_words_ids}.")
         if any(not isinstance(bad_word_ids, list) for bad_word_ids in bad_words_ids):
             raise ValueError(f"`bad_words_ids` has to be a list of lists, but is {bad_words_ids}.")
         if any(
@@ -439,7 +474,7 @@ class NoBadWordsLogitsProcessor(LogitsProcessor):
                 else:
                     logger.error(
                         f"An invalid bad word ID is defined: {token}. This ID is not contained in the "
-                        f"vocabulary, and is therefore ignored."
+                        "vocabulary, and is therefore ignored."
                     )
         if not banned_mask_list and self.static_bad_words_mask is None:
             return scores
@@ -471,16 +506,15 @@ class NoBadWordsLogitsProcessor(LogitsProcessor):
 
 class PrefixConstrainedLogitsProcessor(LogitsProcessor):
     r"""
-    [`LogitsProcessor`] that enforces constrained generation and is useful for prefix-conditioned
-    constrained generation. See [Autoregressive Entity Retrieval](https://arxiv.org/abs/2010.00904) for more
-    information.
+    [`LogitsProcessor`] that enforces constrained generation and is useful for prefix-conditioned constrained
+    generation. See [Autoregressive Entity Retrieval](https://arxiv.org/abs/2010.00904) for more information.
 
     Args:
         prefix_allowed_tokens_fn: (`Callable[[int, torch.Tensor], List[int]]`):
             This function constraints the beam search to allowed tokens only at each step. This function takes 2
-            arguments `inputs_ids` and the batch ID `batch_id`. It has to return a list with the allowed
-            tokens for the next generation step conditioned on the previously generated tokens `inputs_ids` and
-            the batch ID `batch_id`.
+            arguments `inputs_ids` and the batch ID `batch_id`. It has to return a list with the allowed tokens for the
+            next generation step conditioned on the previously generated tokens `inputs_ids` and the batch ID
+            `batch_id`.
     """
 
     def __init__(self, prefix_allowed_tokens_fn: Callable[[int, torch.Tensor], List[int]], num_beams: int):
@@ -498,20 +532,20 @@ class PrefixConstrainedLogitsProcessor(LogitsProcessor):
 
 class HammingDiversityLogitsProcessor(LogitsProcessor):
     r"""
-    [`LogitsProcessor`] that enforces diverse beam search. Note that this logits processor is only
-    effective for [`PreTrainedModel.group_beam_search`]. See [Diverse Beam Search: Decoding Diverse
-    Solutions from Neural Sequence Models](https://arxiv.org/pdf/1610.02424.pdf) for more details.
+    [`LogitsProcessor`] that enforces diverse beam search. Note that this logits processor is only effective for
+    [`PreTrainedModel.group_beam_search`]. See [Diverse Beam Search: Decoding Diverse Solutions from Neural Sequence
+    Models](https://arxiv.org/pdf/1610.02424.pdf) for more details.
 
     Args:
         diversity_penalty (`float`):
             This value is subtracted from a beam's score if it generates a token same as any beam from other group at a
             particular time. Note that `diversity_penalty` is only effective if `group beam search` is enabled.
         num_beams (`int`):
-            Number of beams used for group beam search. See [this paper](https://arxiv.org/pdf/1610.02424.pdf) for
-            more details.
+            Number of beams used for group beam search. See [this paper](https://arxiv.org/pdf/1610.02424.pdf) for more
+            details.
         num_beam_groups (`int`):
-            Number of groups to divide `num_beams` into in order to ensure diversity among different groups of
-            beams. See [this paper](https://arxiv.org/pdf/1610.02424.pdf) for more details.
+            Number of groups to divide `num_beams` into in order to ensure diversity among different groups of beams.
+            See [this paper](https://arxiv.org/pdf/1610.02424.pdf) for more details.
     """
 
     def __init__(self, diversity_penalty: float, num_beams: int, num_beam_groups: int):
@@ -579,8 +613,7 @@ class ForcedBOSTokenLogitsProcessor(LogitsProcessor):
 
 class ForcedEOSTokenLogitsProcessor(LogitsProcessor):
     r"""
-    [`LogitsProcessor`] that enforces the specified token as the last generated token when
-    `max_length` is reached.
+    [`LogitsProcessor`] that enforces the specified token as the last generated token when `max_length` is reached.
 
     Args:
         max_length (`int`):
@@ -604,9 +637,9 @@ class ForcedEOSTokenLogitsProcessor(LogitsProcessor):
 
 class InfNanRemoveLogitsProcessor(LogitsProcessor):
     r"""
-    [`LogitsProcessor`] that removes all `nan` and `inf` values to avoid the generation
-    method to fail. Note that using the logits processor should only be used if necessary since it can slow down the
-    generation method. `max_length` is reached.
+    [`LogitsProcessor`] that removes all `nan` and `inf` values to avoid the generation method to fail. Note that using
+    the logits processor should only be used if necessary since it can slow down the generation method. `max_length` is
+    reached.
     """
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
@@ -616,4 +649,46 @@ class InfNanRemoveLogitsProcessor(LogitsProcessor):
         # set all inf values to max possible value
         scores[scores == float("inf")] = torch.finfo(scores.dtype).max
 
+        return scores
+
+
+class ExponentialDecayLengthPenalty(LogitsProcessor):
+    r"""
+    [`LogitsProcessor`] that exponentially increases the score of the eos_token_id after regulation_start has been
+    reached.
+
+    Args:
+        exponential_decay_length_penalty (`tuple(int, float)`, *optional*):
+            This tuple shall consist of: `(start_index, decay_factor)` where `start_index` indicates where penalty
+            starts and `decay_factor` represents the factor of exponential decay
+        eos_token_id (`int`):
+            The id of the *end-of-sequence* token.
+        input_ids_seq_length (`int`):
+            The length of the input sequence.
+    """
+
+    def __init__(self, exponential_decay_length_penalty: Tuple, eos_token_id: int, input_ids_seq_length: int):
+        self.regulation_start = exponential_decay_length_penalty[0] + input_ids_seq_length
+        self.regulation_factor = exponential_decay_length_penalty[1]
+        self.eos_token_id = eos_token_id
+
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.FloatTensor:
+        cur_len = input_ids.shape[-1]
+        if cur_len > self.regulation_start:
+            scores[:, self.eos_token_id] = scores[:, self.eos_token_id] * pow(
+                self.regulation_factor, cur_len - self.regulation_start
+            )
+        return scores
+
+
+class LogitNormalization(LogitsProcessor, LogitsWarper):
+    r"""
+    [`LogitsWarper`] and [`LogitsProcessor`] for normalizing the scores using log-softmax. It's important to normalize
+    the scores during beam search, after applying the logits processors or warpers, since the search algorithm used in
+    this library doesn't do it (it only does it before, but they may need re-normalization) but it still supposes that
+    the scores are normalized when comparing the hypotheses.
+    """
+
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
+        scores = scores.log_softmax(dim=-1)
         return scores

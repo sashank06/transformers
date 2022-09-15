@@ -12,10 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Perceiver model configuration """
+""" Perceiver model configuration"""
+
+from collections import OrderedDict
+from typing import Any, Mapping, Optional, Union
 
 from ...configuration_utils import PretrainedConfig
-from ...utils import logging
+from ...feature_extraction_utils import FeatureExtractionMixin
+from ...onnx import OnnxConfig
+from ...onnx.utils import compute_effective_axis_dimension
+from ...tokenization_utils_base import PreTrainedTokenizerBase
+from ...utils import TensorType, logging
 
 
 logger = logging.get_logger(__name__)
@@ -28,13 +35,13 @@ PERCEIVER_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class PerceiverConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a [`PerceiverModel`]. It is used
-    to instantiate an Perceiver model according to the specified arguments, defining the model architecture.
-    Instantiating a configuration with the defaults will yield a similar configuration to that of the Perceiver
+    This is the configuration class to store the configuration of a [`PerceiverModel`]. It is used to instantiate an
+    Perceiver model according to the specified arguments, defining the model architecture. Instantiating a
+    configuration with the defaults will yield a similar configuration to that of the Perceiver
     [deepmind/language-perceiver](https://huggingface.co/deepmind/language-perceiver) architecture.
 
-    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model
-    outputs. Read the documentation from [`PretrainedConfig`] for more information.
+    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
+    documentation from [`PretrainedConfig`] for more information.
 
     Args:
         num_latents (`int`, *optional*, defaults to 256):
@@ -65,8 +72,8 @@ class PerceiverConfig(PretrainedConfig):
         cross_attention_widening_factor (`int`, *optional*, defaults to 1):
             Dimension of the feed-forward layer in the self-attention layers of the Transformer encoder.
         hidden_act (`str` or `function`, *optional*, defaults to `"gelu"`):
-            The non-linear activation function (function or string) in the encoder and pooler. If string,
-            `"gelu"`, `"relu"`, `"selu"` and `"gelu_new"` are supported.
+            The non-linear activation function (function or string) in the encoder and pooler. If string, `"gelu"`,
+            `"relu"`, `"selu"` and `"gelu_new"` are supported.
         attention_probs_dropout_prob (`float`, *optional*, defaults to 0.1):
             The dropout ratio for the attention probabilities.
         initializer_range (`float`, *optional*, defaults to 0.02):
@@ -172,3 +179,63 @@ class PerceiverConfig(PretrainedConfig):
         self.audio_samples_per_frame = audio_samples_per_frame
         self.samples_per_patch = samples_per_patch
         self.output_shape = output_shape
+
+
+class PerceiverOnnxConfig(OnnxConfig):
+    @property
+    def inputs(self) -> Mapping[str, Mapping[int, str]]:
+        if self.task == "multiple-choice":
+            dynamic_axis = {0: "batch", 1: "choice", 2: "sequence"}
+        else:
+            dynamic_axis = {0: "batch", 1: "sequence"}
+        return OrderedDict(
+            [
+                ("inputs", dynamic_axis),
+                ("attention_mask", dynamic_axis),
+            ]
+        )
+
+    @property
+    def atol_for_validation(self) -> float:
+        return 1e-4
+
+    def generate_dummy_inputs(
+        self,
+        preprocessor: Union["PreTrainedTokenizerBase", "FeatureExtractionMixin"],
+        batch_size: int = -1,
+        seq_length: int = -1,
+        num_choices: int = -1,
+        is_pair: bool = False,
+        framework: Optional[TensorType] = None,
+        num_channels: int = 3,
+        image_width: int = 40,
+        image_height: int = 40,
+    ) -> Mapping[str, Any]:
+        # copied from `transformers.onnx.config.OnnxConfig` and slightly altered/simplified
+
+        if isinstance(preprocessor, PreTrainedTokenizerBase):
+            # If dynamic axis (-1) we forward with a fixed dimension of 2 samples to avoid optimizations made by ONNX
+            batch_size = compute_effective_axis_dimension(
+                batch_size, fixed_dimension=OnnxConfig.default_fixed_batch, num_token_to_add=0
+            )
+            # If dynamic axis (-1) we forward with a fixed dimension of 8 tokens to avoid optimizations made by ONNX
+            token_to_add = preprocessor.num_special_tokens_to_add(is_pair)
+            seq_length = compute_effective_axis_dimension(
+                seq_length, fixed_dimension=OnnxConfig.default_fixed_sequence, num_token_to_add=token_to_add
+            )
+            # Generate dummy inputs according to compute batch and sequence
+            dummy_input = [" ".join(["a"]) * seq_length] * batch_size
+            inputs = dict(preprocessor(dummy_input, return_tensors=framework))
+            inputs["inputs"] = inputs.pop("input_ids")
+            return inputs
+        elif isinstance(preprocessor, FeatureExtractionMixin) and preprocessor.model_input_names[0] == "pixel_values":
+            # If dynamic axis (-1) we forward with a fixed dimension of 2 samples to avoid optimizations made by ONNX
+            batch_size = compute_effective_axis_dimension(batch_size, fixed_dimension=OnnxConfig.default_fixed_batch)
+            dummy_input = self._generate_dummy_images(batch_size, num_channels, image_height, image_width)
+            inputs = dict(preprocessor(images=dummy_input, return_tensors=framework))
+            inputs["inputs"] = inputs.pop("pixel_values")
+            return inputs
+        else:
+            raise ValueError(
+                "Unable to generate dummy inputs for the model. Please provide a tokenizer or a preprocessor."
+            )

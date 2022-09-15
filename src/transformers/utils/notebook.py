@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import re
 import time
 from typing import Optional
@@ -21,7 +20,7 @@ from typing import Optional
 import IPython.display as disp
 
 from ..trainer_callback import TrainerCallback
-from ..trainer_utils import IntervalStrategy
+from ..trainer_utils import IntervalStrategy, has_length
 
 
 def format_time(t):
@@ -45,7 +44,7 @@ def html_progress_bar(value, total, prefix, label, width=300):
 def text_to_html_table(items):
     "Put the texts in `items` in an HTML table."
     html_code = """<table border="1" class="dataframe">\n"""
-    html_code += """  <thead>\n    <tr style="text-align: left;">\n"""
+    html_code += """  <thead>\n <tr style="text-align: left;">\n"""
     for i in items[0]:
         html_code += f"      <th>{i}</th>\n"
     html_code += "    </tr>\n  </thead>\n  <tbody>\n"
@@ -65,11 +64,10 @@ class NotebookProgressBar:
 
     Class attributes (overridden by derived classes)
 
-        - **warmup** (`int`) -- The number of iterations to do at the beginning while ignoring
-          `update_every`.
+        - **warmup** (`int`) -- The number of iterations to do at the beginning while ignoring `update_every`.
         - **update_every** (`float`) -- Since calling the time takes some time, we only do it every presumed
-          `update_every` seconds. The progress bar uses the average time passed up until now to guess the next
-          value for which it will call the update.
+          `update_every` seconds. The progress bar uses the average time passed up until now to guess the next value
+          for which it will call the update.
 
     Args:
         total (`int`):
@@ -80,8 +78,8 @@ class NotebookProgressBar:
             Whether or not to leave the progress bar once it's completed. You can always call the
             [`~utils.notebook.NotebookProgressBar.close`] method to make the bar disappear.
         parent ([`~notebook.NotebookTrainingTracker`], *optional*):
-            A parent object (like [`~utils.notebook.NotebookTrainingTracker`]) that spawns progress
-            bars and handle their display. If set, the object passed must have a `display()` method.
+            A parent object (like [`~utils.notebook.NotebookTrainingTracker`]) that spawns progress bars and handle
+            their display. If set, the object passed must have a `display()` method.
         width (`int`, *optional*, defaults to 300):
             The width (in pixels) that the bar will take.
 
@@ -122,13 +120,12 @@ class NotebookProgressBar:
         The main method to update the progress bar to `value`.
 
         Args:
-
             value (`int`):
                 The value to use. Must be between 0 and `total`.
             force_update (`bool`, *optional*, defaults to `False`):
                 Whether or not to force and update of the internal state and display (by default, the bar will wait for
-                `value` to reach the value it predicted corresponds to a time of more than the `update_every`
-                attribute since the last update to avoid adding boilerplate).
+                `value` to reach the value it predicted corresponds to a time of more than the `update_every` attribute
+                since the last update to avoid adding boilerplate).
             comment (`str`, *optional*):
                 A comment to add on the left of the progress bar.
         """
@@ -176,7 +173,10 @@ class NotebookProgressBar:
         elif self.predicted_remaining is None:
             self.label = f"[{spaced_value}/{self.total} {format_time(self.elapsed_time)}"
         else:
-            self.label = f"[{spaced_value}/{self.total} {format_time(self.elapsed_time)} < {format_time(self.predicted_remaining)}"
+            self.label = (
+                f"[{spaced_value}/{self.total} {format_time(self.elapsed_time)} <"
+                f" {format_time(self.predicted_remaining)}"
+            )
             self.label += f", {1/self.average_time_per_item:.2f} it/s"
         self.label += "]" if self.comment is None or len(self.comment) == 0 else f", {self.comment}]"
         self.display()
@@ -203,9 +203,7 @@ class NotebookTrainingTracker(NotebookProgressBar):
     An object tracking the updates of an ongoing training with progress bars and a nice table reporting metrics.
 
     Args:
-
-        num_steps (`int`): The number of steps during training.
-        column_names (`List[str]`, *optional*):
+        num_steps (`int`): The number of steps during training. column_names (`List[str]`, *optional*):
             The list of column names for the metrics table (will be inferred from the first call to
             [`~utils.notebook.NotebookTrainingTracker.write_line`] if not set).
     """
@@ -268,8 +266,8 @@ class NotebookTrainingTracker(NotebookProgressBar):
 
 class NotebookProgressCallback(TrainerCallback):
     """
-    A [`TrainerCallback`] that displays the progress of training or evaluation, optimized for
-    Jupyter Notebooks or Google colab.
+    A [`TrainerCallback`] that displays the progress of training or evaluation, optimized for Jupyter Notebooks or
+    Google colab.
     """
 
     def __init__(self):
@@ -296,7 +294,7 @@ class NotebookProgressCallback(TrainerCallback):
         self._force_next_update = False
 
     def on_prediction_step(self, args, state, control, eval_dataloader=None, **kwargs):
-        if not isinstance(eval_dataloader.dataset, collections.abc.Sized):
+        if not has_length(eval_dataloader):
             return
         if self.prediction_bar is None:
             if self.training_tracker is not None:
@@ -306,6 +304,11 @@ class NotebookProgressCallback(TrainerCallback):
             self.prediction_bar.update(1)
         else:
             self.prediction_bar.update(self.prediction_bar.value + 1)
+
+    def on_predict(self, args, state, control, **kwargs):
+        if self.prediction_bar is not None:
+            self.prediction_bar.close()
+        self.prediction_bar = None
 
     def on_log(self, args, state, control, logs=None, **kwargs):
         # Only for when there is no evaluation

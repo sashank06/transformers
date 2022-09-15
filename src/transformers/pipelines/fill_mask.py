@@ -2,13 +2,14 @@ from typing import Dict
 
 import numpy as np
 
-from ..file_utils import add_end_docstrings, is_tf_available, is_torch_available
-from ..utils import logging
+from ..utils import add_end_docstrings, is_tf_available, is_torch_available, logging
 from .base import PIPELINE_INIT_ARGS, GenericTensor, Pipeline, PipelineException
 
 
 if is_tf_available():
     import tensorflow as tf
+
+    from ..tf_utils import stable_softmax
 
 
 if is_torch_available():
@@ -35,8 +36,8 @@ class FillMaskPipeline(Pipeline):
     Masked language modeling prediction pipeline using any `ModelWithLMHead`. See the [masked language modeling
     examples](../task_summary#masked-language-modeling) for more information.
 
-    This mask filling pipeline can currently be loaded from [`pipeline`] using the following task
-    identifier: `"fill-mask"`.
+    This mask filling pipeline can currently be loaded from [`pipeline`] using the following task identifier:
+    `"fill-mask"`.
 
     The models that this pipeline can use are models that have been trained with a masked language modeling objective,
     which includes the bi-directional models in the library. See the up-to-date list of available models on
@@ -45,8 +46,8 @@ class FillMaskPipeline(Pipeline):
     <Tip>
 
     This pipeline only works for inputs with exactly one token masked. Experimental: We added support for multiple
-    masks. The returned values are raw model output, and correspond to disjoint probabilities where one might
-    expect joint probabilities (See [discussion](https://github.com/huggingface/transformers/pull/10222)).
+    masks. The returned values are raw model output, and correspond to disjoint probabilities where one might expect
+    joint probabilities (See [discussion](https://github.com/huggingface/transformers/pull/10222)).
 
     </Tip>"""
 
@@ -102,7 +103,7 @@ class FillMaskPipeline(Pipeline):
             outputs = outputs.numpy()
 
             logits = outputs[0, masked_index, :]
-            probs = tf.nn.softmax(logits, axis=-1)
+            probs = stable_softmax(logits, axis=-1)
             if target_ids is not None:
                 probs = tf.gather_nd(tf.squeeze(probs, 0), target_ids.reshape(-1, 1))
                 probs = tf.expand_dims(probs, 0)
@@ -166,7 +167,7 @@ class FillMaskPipeline(Pipeline):
                 if len(input_ids) == 0:
                     logger.warning(
                         f"The specified target token `{target}` does not exist in the model vocabulary. "
-                        f"We cannot replace it with anything meaningful, ignoring it"
+                        "We cannot replace it with anything meaningful, ignoring it"
                     )
                     continue
                 id_ = input_ids[0]

@@ -19,10 +19,9 @@ import os
 from shutil import copyfile
 from typing import List, Optional, Tuple
 
-from ...file_utils import is_sentencepiece_available
 from ...tokenization_utils import AddedToken
 from ...tokenization_utils_fast import PreTrainedTokenizerFast
-from ...utils import logging
+from ...utils import is_sentencepiece_available, logging
 
 
 if is_sentencepiece_available():
@@ -38,12 +37,16 @@ PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
         "moussaKam/mbarthez": "https://huggingface.co/moussaKam/mbarthez/resolve/main/sentencepiece.bpe.model",
         "moussaKam/barthez": "https://huggingface.co/moussaKam/barthez/resolve/main/sentencepiece.bpe.model",
-        "moussaKam/barthez-orangesum-title": "https://huggingface.co/moussaKam/barthez-orangesum-title/resolve/main/sentencepiece.bpe.model",
+        "moussaKam/barthez-orangesum-title": (
+            "https://huggingface.co/moussaKam/barthez-orangesum-title/resolve/main/sentencepiece.bpe.model"
+        ),
     },
     "tokenizer_file": {
         "moussaKam/mbarthez": "https://huggingface.co/moussaKam/mbarthez/resolve/main/tokenizer.json",
         "moussaKam/barthez": "https://huggingface.co/moussaKam/barthez/resolve/main/tokenizer.json",
-        "moussaKam/barthez-orangesum-title": "https://huggingface.co/moussaKam/barthez-orangesum-title/resolve/main/tokenizer.json",
+        "moussaKam/barthez-orangesum-title": (
+            "https://huggingface.co/moussaKam/barthez-orangesum-title/resolve/main/tokenizer.json"
+        ),
     },
 }
 
@@ -58,11 +61,11 @@ SPIECE_UNDERLINE = "▁"
 
 class BarthezTokenizerFast(PreTrainedTokenizerFast):
     """
-    Adapted from [`CamembertTokenizer`] and [`BartTokenizer`]. Construct a "fast"
-    BARThez tokenizer. Based on [SentencePiece](https://github.com/google/sentencepiece).
+    Adapted from [`CamembertTokenizer`] and [`BartTokenizer`]. Construct a "fast" BARThez tokenizer. Based on
+    [SentencePiece](https://github.com/google/sentencepiece).
 
-    This tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main
-    methods. Users should refer to this superclass for more information regarding those methods.
+    This tokenizer inherits from [`PreTrainedTokenizerFast`] which contains most of the main methods. Users should
+    refer to this superclass for more information regarding those methods.
 
     Args:
         vocab_file (`str`):
@@ -83,8 +86,8 @@ class BarthezTokenizerFast(PreTrainedTokenizerFast):
 
             <Tip>
 
-            When building a sequence using special tokens, this is not the token that is used for the end of
-            sequence. The token used is the `sep_token`.
+            When building a sequence using special tokens, this is not the token that is used for the end of sequence.
+            The token used is the `sep_token`.
 
             </Tip>
 

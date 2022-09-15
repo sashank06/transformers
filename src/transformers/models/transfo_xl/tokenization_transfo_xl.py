@@ -27,11 +27,19 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-import sacremoses as sm
-
-from ...file_utils import cached_path, is_torch_available, torch_only_method
 from ...tokenization_utils import PreTrainedTokenizer
-from ...utils import logging
+from ...utils import (
+    cached_file,
+    is_sacremoses_available,
+    is_torch_available,
+    logging,
+    requires_backends,
+    torch_only_method,
+)
+
+
+if is_sacremoses_available():
+    import sacremoses as sm
 
 
 if is_torch_available():
@@ -114,11 +122,12 @@ def detokenize_numbers(text: str) -> str:
 
 class TransfoXLTokenizer(PreTrainedTokenizer):
     """
-    Construct a Transformer-XL tokenizer adapted from Vocab class in [the original code](https://github.com/kimiyoung/transformer-xl). The Transformer-XL tokenizer is a word-level tokenizer (no
+    Construct a Transformer-XL tokenizer adapted from Vocab class in [the original
+    code](https://github.com/kimiyoung/transformer-xl). The Transformer-XL tokenizer is a word-level tokenizer (no
     sub-word tokenization).
 
-    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods.
-    Users should refer to this superclass for more information regarding those methods.
+    This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
+    this superclass for more information regarding those methods.
 
     Args:
         special (`List[str]`, *optional*):
@@ -187,6 +196,7 @@ class TransfoXLTokenizer(PreTrainedTokenizer):
             language=language,
             **kwargs,
         )
+        requires_backends(self, "sacremoses")
 
         if never_split is None:
             never_split = self.all_special_tokens
@@ -410,10 +420,10 @@ class TransfoXLTokenizer(PreTrainedTokenizer):
 
     def moses_pipeline(self, text: str) -> List[str]:
         """
-        Does basic tokenization using [`sacremoses.MosesPunctNormalizer`] and [`sacremoses.MosesTokenizer`]
-        with *aggressive_dash_splits=True* (see [`sacremoses.tokenize.MosesTokenizer.tokenize`]). Additionally,
-        large comma-separated numbers and floating point values are split. E.g. "23,000 people are 1.80m tall" -> "23
-        @,@ 000 people are 1 @.@ 80m tall"
+        Does basic tokenization using [`sacremoses.MosesPunctNormalizer`] and [`sacremoses.MosesTokenizer`] with
+        *aggressive_dash_splits=True* (see [`sacremoses.tokenize.MosesTokenizer.tokenize`]). Additionally, large
+        comma-separated numbers and floating point values are split. E.g. "23,000 people are 1.80m tall" -> "23 @,@ 000
+        people are 1 @.@ 80m tall"
 
         Args:
             text: Text to be tokenize
@@ -671,25 +681,21 @@ class TransfoXLCorpus(object):
         Instantiate a pre-processed corpus.
         """
         vocab = TransfoXLTokenizer.from_pretrained(pretrained_model_name_or_path, *inputs, **kwargs)
-        if pretrained_model_name_or_path in PRETRAINED_CORPUS_ARCHIVE_MAP:
-            corpus_file = PRETRAINED_CORPUS_ARCHIVE_MAP[pretrained_model_name_or_path]
-        else:
-            corpus_file = os.path.join(pretrained_model_name_or_path, CORPUS_NAME)
+        is_local = os.path.isdir(pretrained_model_name_or_path)
         # redirect to the cache, if necessary
         try:
-            resolved_corpus_file = cached_path(corpus_file, cache_dir=cache_dir)
+            resolved_corpus_file = cached_file(pretrained_model_name_or_path, CORPUS_NAME, cache_dir=cache_dir)
         except EnvironmentError:
             logger.error(
-                f"Corpus '{pretrained_model_name_or_path}' was not found in corpus list "
-                f"({', '.join(PRETRAINED_CORPUS_ARCHIVE_MAP.keys())}. "
-                f"We assumed '{pretrained_model_name_or_path}' was a path or url but couldn't find files {corpus_file} "
-                "at this path or url."
+                f"Corpus '{pretrained_model_name_or_path}' was not found in corpus list"
+                f" ({', '.join(PRETRAINED_CORPUS_ARCHIVE_MAP.keys())}. We assumed '{pretrained_model_name_or_path}'"
+                f" was a path or url but couldn't find files {CORPUS_NAME} at this path or url."
             )
             return None
-        if resolved_corpus_file == corpus_file:
-            logger.info(f"loading corpus file {corpus_file}")
+        if is_local:
+            logger.info(f"loading corpus file {resolved_corpus_file}")
         else:
-            logger.info(f"loading corpus file {corpus_file} from cache at {resolved_corpus_file}")
+            logger.info(f"loading corpus file {CORPUS_NAME} from cache at {resolved_corpus_file}")
 
         # Instantiate tokenizer.
         corpus = cls(*inputs, **kwargs)

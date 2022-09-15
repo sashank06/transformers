@@ -24,8 +24,7 @@ import torchaudio.compliance.kaldi as ta_kaldi
 
 from ...feature_extraction_sequence_utils import SequenceFeatureExtractor
 from ...feature_extraction_utils import BatchFeature
-from ...file_utils import PaddingStrategy, TensorType
-from ...utils import logging
+from ...utils import PaddingStrategy, TensorType, logging
 
 
 logger = logging.get_logger(__name__)
@@ -35,8 +34,8 @@ class Speech2TextFeatureExtractor(SequenceFeatureExtractor):
     r"""
     Constructs a Speech2Text feature extractor.
 
-    This feature extractor inherits from [`Speech2TextFeatureExtractor`] which contains most of the
-    main methods. Users should refer to this superclass for more information regarding those methods.
+    This feature extractor inherits from [`Speech2TextFeatureExtractor`] which contains most of the main methods. Users
+    should refer to this superclass for more information regarding those methods.
 
     This class extracts mel-filter bank features from raw speech using TorchAudio and applies utterance-level cepstral
     mean and variance normalization to the extracted features.
@@ -86,7 +85,7 @@ class Speech2TextFeatureExtractor(SequenceFeatureExtractor):
         Get mel-filter bank features using TorchAudio. Note that TorchAudio requires 16-bit signed integers as inputs
         and hence the waveform should not be normalized before feature extraction.
         """
-        waveform = waveform * (2 ** 15)  # Kaldi compliance: 16-bit signed integers
+        waveform = waveform * (2**15)  # Kaldi compliance: 16-bit signed integers
         waveform = torch.from_numpy(waveform).unsqueeze(0)
         features = ta_kaldi.fbank(waveform, num_mel_bins=self.num_mel_bins, sample_frequency=self.sampling_rate)
         return features.numpy()
@@ -143,16 +142,16 @@ class Speech2TextFeatureExtractor(SequenceFeatureExtractor):
             raw_speech (`np.ndarray`, `List[float]`, `List[np.ndarray]`, `List[List[float]]`):
                 The sequence or batch of sequences to be padded. Each sequence can be a numpy array, a list of float
                 values, a list of numpy arrays or a list of list of float values.
-            padding (`bool`, `str` or [`~file_utils.PaddingStrategy`], *optional*, defaults to `True`):
+            padding (`bool`, `str` or [`~utils.PaddingStrategy`], *optional*, defaults to `True`):
                 Select a strategy to pad the returned sequences (according to the model's padding side and padding
                 index) among:
 
-                - `True` or `'longest'`: Pad to the longest sequence in the batch (or no padding if only a
-                  single sequence if provided).
-                - `'max_length'`: Pad to a maximum length specified with the argument `max_length` or to the
-                  maximum acceptable input length for the model if that argument is not provided.
-                - `False` or `'do_not_pad'` (default): No padding (i.e., can output a batch with sequences of
-                  different lengths).
+                - `True` or `'longest'`: Pad to the longest sequence in the batch (or no padding if only a single
+                  sequence if provided).
+                - `'max_length'`: Pad to a maximum length specified with the argument `max_length` or to the maximum
+                  acceptable input length for the model if that argument is not provided.
+                - `False` or `'do_not_pad'` (default): No padding (i.e., can output a batch with sequences of different
+                  lengths).
             max_length (`int`, *optional*):
                 Maximum length of the returned list and optionally padding length (see above).
             truncation (`bool`):
@@ -170,12 +169,12 @@ class Speech2TextFeatureExtractor(SequenceFeatureExtractor):
 
                 <Tip>
 
-                For Speech2TextTransoformer models, `attention_mask` should alwys be passed for batched
-                inference, to avoid subtle bugs.
+                For Speech2TextTransoformer models, `attention_mask` should alwys be passed for batched inference, to
+                avoid subtle bugs.
 
                 </Tip>
 
-            return_tensors (`str` or [`~file_utils.TensorType`], *optional*):
+            return_tensors (`str` or [`~utils.TensorType`], *optional*):
                 If set, will return tensors instead of list of python integers. Acceptable values are:
 
                 - `'tf'`: Return TensorFlow `tf.constant` objects.
@@ -191,8 +190,9 @@ class Speech2TextFeatureExtractor(SequenceFeatureExtractor):
         if sampling_rate is not None:
             if sampling_rate != self.sampling_rate:
                 raise ValueError(
-                    f"The model corresponding to this feature extractor: {self} was trained using a sampling rate of {self.sampling_rate}. "
-                    f"Please make sure that the provided `raw_speech` input was sampled with {self.sampling_rate} and not {sampling_rate}."
+                    f"The model corresponding to this feature extractor: {self} was trained using a sampling rate of"
+                    f" {self.sampling_rate}. Please make sure that the provided `raw_speech` input was sampled with"
+                    f" {self.sampling_rate} and not {sampling_rate}."
                 )
         else:
             logger.warning(

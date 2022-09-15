@@ -20,10 +20,9 @@ from multiprocessing import Pool, cpu_count
 import numpy as np
 from tqdm import tqdm
 
-from ...file_utils import is_tf_available, is_torch_available
 from ...models.bert.tokenization_bert import whitespace_tokenize
 from ...tokenization_utils_base import BatchEncoding, PreTrainedTokenizerBase, TruncationStrategy
-from ...utils import logging
+from ...utils import is_tf_available, is_torch_available, logging
 from .utils import DataProcessor
 
 
@@ -58,7 +57,7 @@ def _check_is_max_context(doc_spans, cur_span_index, position):
     """Check if this is the 'max context' doc span for the token."""
     best_score = None
     best_span_index = None
-    for (span_index, doc_span) in enumerate(doc_spans):
+    for span_index, doc_span in enumerate(doc_spans):
         end = doc_span.start + doc_span.length - 1
         if position < doc_span.start:
             continue
@@ -80,7 +79,7 @@ def _new_check_is_max_context(doc_spans, cur_span_index, position):
     # return True
     best_score = None
     best_span_index = None
-    for (span_index, doc_span) in enumerate(doc_spans):
+    for span_index, doc_span in enumerate(doc_spans):
         end = doc_span["start"] + doc_span["length"] - 1
         if position < doc_span["start"]:
             continue
@@ -121,7 +120,7 @@ def squad_convert_example_to_features(
     tok_to_orig_index = []
     orig_to_tok_index = []
     all_doc_tokens = []
-    for (i, token) in enumerate(example.doc_tokens):
+    for i, token in enumerate(example.doc_tokens):
         orig_to_tok_index.append(len(all_doc_tokens))
         if tokenizer.__class__.__name__ in [
             "RobertaTokenizer",
@@ -588,6 +587,7 @@ class SquadProcessor(DataProcessor):
 
         ```python
         >>> import tensorflow_datasets as tfds
+
         >>> dataset = tfds.load("squad")
 
         >>> training_examples = get_examples_from_dataset(dataset, evaluate=False)
@@ -774,9 +774,10 @@ class SquadFeatures:
         example_index: the index of the example
         unique_id: The unique Feature identifier
         paragraph_len: The length of the context
-        token_is_max_context: List of booleans identifying which tokens have their maximum context in this feature object.
-            If a token does not have their maximum context in this feature object, it means that another feature object
-            has more information related to that token and should be prioritized over this feature for that token.
+        token_is_max_context:
+            List of booleans identifying which tokens have their maximum context in this feature object. If a token
+            does not have their maximum context in this feature object, it means that another feature object has more
+            information related to that token and should be prioritized over this feature for that token.
         tokens: list of tokens corresponding to the input ids
         token_to_orig_map: mapping between the tokens and the original text, needed in order to identify the answer.
         start_position: start of the answer token index
