@@ -455,6 +455,7 @@ class _BaseAutoModelClass:
             model_class = get_class_from_dynamic_module(
                 pretrained_model_name_or_path, module_file + ".py", class_name, **hub_kwargs, **kwargs
             )
+            model_class.register_for_auto_class(cls.__name__)
             return model_class.from_pretrained(
                 pretrained_model_name_or_path, *model_args, config=config, **hub_kwargs, **kwargs
             )
@@ -555,7 +556,14 @@ def getattribute_from_module(module, attr):
     # Some of the mappings have entries model_type -> object of another model type. In that case we try to grab the
     # object at the top level.
     transformers_module = importlib.import_module("transformers")
-    return getattribute_from_module(transformers_module, attr)
+
+    if module != transformers_module:
+        try:
+            return getattribute_from_module(transformers_module, attr)
+        except ValueError:
+            raise ValueError(f"Could not find {attr} neither in {module} nor in {transformers_module}!")
+    else:
+        raise ValueError(f"Could not find {attr} in {transformers_module}!")
 
 
 class _LazyAutoMapping(OrderedDict):

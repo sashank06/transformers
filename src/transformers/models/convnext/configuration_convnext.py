@@ -67,12 +67,14 @@ class ConvNextConfig(PretrainedConfig):
 
     Example:
     ```python
-    >>> from transformers import ConvNextModel, ConvNextConfig
+    >>> from transformers import ConvNextConfig, ConvNextModel
 
     >>> # Initializing a ConvNext convnext-tiny-224 style configuration
     >>> configuration = ConvNextConfig()
-    >>> # Initializing a model from the convnext-tiny-224 style configuration
+
+    >>> # Initializing a model (with random weights) from the convnext-tiny-224 style configuration
     >>> model = ConvNextModel(configuration)
+
     >>> # Accessing the model configuration
     >>> configuration = model.config
     ```"""
@@ -88,7 +90,6 @@ class ConvNextConfig(PretrainedConfig):
         hidden_act="gelu",
         initializer_range=0.02,
         layer_norm_eps=1e-12,
-        is_encoder_decoder=False,
         layer_scale_init_value=1e-6,
         drop_path_rate=0.0,
         image_size=224,

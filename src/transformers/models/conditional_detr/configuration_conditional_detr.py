@@ -110,16 +110,18 @@ class ConditionalDetrConfig(PretrainedConfig):
             Relative weight of the generalized IoU loss in the object detection loss.
         eos_coefficient (`float`, *optional*, defaults to 0.1):
             Relative classification weight of the 'no-object' class in the object detection loss.
+        focal_alpha (`float`, *optional*, defaults to 0.25):
+            Alpha parameter in the focal loss.
 
     Examples:
 
     ```python
-    >>> from transformers import ConditionalDetrModel, ConditionalDetrConfig
+    >>> from transformers import ConditionalDetrConfig, ConditionalDetrModel
 
     >>> # Initializing a Conditional DETR microsoft/conditional-detr-resnet-50 style configuration
     >>> configuration = ConditionalDetrConfig()
 
-    >>> # Initializing a model from the microsoft/conditional-detr-resnet-50 style configuration
+    >>> # Initializing a model (with random weights) from the microsoft/conditional-detr-resnet-50 style configuration
     >>> model = ConditionalDetrModel(configuration)
 
     >>> # Accessing the model configuration
@@ -136,7 +138,6 @@ class ConditionalDetrConfig(PretrainedConfig):
         self,
         num_channels=3,
         num_queries=300,
-        max_position_embeddings=1024,
         encoder_layers=6,
         encoder_ffn_dim=2048,
         encoder_attention_heads=8,
@@ -173,7 +174,6 @@ class ConditionalDetrConfig(PretrainedConfig):
     ):
         self.num_channels = num_channels
         self.num_queries = num_queries
-        self.max_position_embeddings = max_position_embeddings
         self.d_model = d_model
         self.encoder_ffn_dim = encoder_ffn_dim
         self.encoder_layers = encoder_layers

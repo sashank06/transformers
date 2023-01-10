@@ -542,14 +542,15 @@ class TFTransfoXLMainLayer(tf.keras.layers.Layer):
     @unpack_inputs
     def call(
         self,
-        input_ids=None,
-        mems=None,
-        head_mask=None,
-        inputs_embeds=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
-        training=False,
+        input_ids: Optional[TFModelInputType] = None,
+        mems: Optional[List[tf.Tensor]] = None,
+        head_mask: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        inputs_embeds: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        labels: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        training: bool = False,
     ):
 
         # the original code for Transformer-XL used shapes [len, bsz] but we want a unified interface in the library
@@ -686,7 +687,7 @@ class TFTransfoXLPreTrainedModel(TFPreTrainedModel):
     @tf.function(
         input_signature=[
             {
-                "input_ids": tf.TensorSpec((None, None), tf.int64, name="input_ids"),
+                "input_ids": tf.TensorSpec((None, None), tf.int32, name="input_ids"),
             }
         ]
     )
@@ -894,14 +895,14 @@ class TFTransfoXLModel(TFTransfoXLPreTrainedModel):
     )
     def call(
         self,
-        input_ids=None,
-        mems=None,
-        head_mask=None,
-        inputs_embeds=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
-        training=False,
+        input_ids: Optional[TFModelInputType] = None,
+        mems: Optional[List[tf.Tensor]] = None,
+        head_mask: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        inputs_embeds: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        training: bool = False,
     ):
         outputs = self.transformer(
             input_ids=input_ids,
@@ -974,15 +975,15 @@ class TFTransfoXLLMHeadModel(TFTransfoXLPreTrainedModel):
     )
     def call(
         self,
-        input_ids=None,
-        mems=None,
-        head_mask=None,
-        inputs_embeds=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
-        labels=None,
-        training=False,
+        input_ids: Optional[TFModelInputType] = None,
+        mems: Optional[List[tf.Tensor]] = None,
+        head_mask: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        inputs_embeds: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        labels: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        training: bool = False,
     ):
         if input_ids is not None:
             bsz, tgt_len = shape_list(input_ids)[:2]
@@ -1027,20 +1028,16 @@ class TFTransfoXLLMHeadModel(TFTransfoXLPreTrainedModel):
             attentions=attns,
         )
 
-    def prepare_inputs_for_generation(self, input_ids, past=None, **model_kwargs):
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **model_kwargs):
         inputs = {}
 
         # if past is defined in model kwargs then use it for faster decoding
-        if past:
+        if past_key_values:
             input_ids = tf.expand_dims(input_ids[:, -1], axis=-1)
         else:
             input_ids = input_ids
 
         return inputs
-
-    @staticmethod
-    def _reorder_cache(mems: List[tf.Tensor], beam_idx: tf.Tensor) -> List[tf.Tensor]:
-        return [tf.gather(layer_past, beam_idx, axis=1) for layer_past in mems]
 
 
 @add_start_docstrings(

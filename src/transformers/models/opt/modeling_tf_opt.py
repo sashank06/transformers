@@ -415,9 +415,9 @@ class TFOPTPreTrainedModel(TFPreTrainedModel):
     @property
     def dummy_inputs(self):
         pad_token = 1
-        input_ids = tf.cast(tf.convert_to_tensor(DUMMY_INPUTS), tf.int32)
+        input_ids = tf.convert_to_tensor(DUMMY_INPUTS, dtype=tf.int32)
         dummy_inputs = {
-            "attention_mask": tf.math.not_equal(input_ids, pad_token),
+            "attention_mask": tf.cast(input_ids != pad_token, tf.int32),
             "input_ids": input_ids,
         }
         return dummy_inputs
@@ -425,8 +425,8 @@ class TFOPTPreTrainedModel(TFPreTrainedModel):
     @tf.function(
         input_signature=[
             {
-                "input_ids": tf.TensorSpec((None, None), tf.int64, name="input_ids"),
-                "attention_mask": tf.TensorSpec((None, None), tf.int64, name="attention_mask"),
+                "input_ids": tf.TensorSpec((None, None), tf.int32, name="input_ids"),
+                "attention_mask": tf.TensorSpec((None, None), tf.int32, name="attention_mask"),
             }
         ]
     )
@@ -881,17 +881,17 @@ class TFOPTForCausalLM(TFOPTPreTrainedModel, TFCausalLanguageModelingLoss):
     def get_output_embeddings(self):
         return self.model.get_input_embeddings()
 
-    def prepare_inputs_for_generation(self, inputs, past=None, use_cache=None, **kwargs):
+    def prepare_inputs_for_generation(self, inputs, past_key_values=None, use_cache=None, **kwargs):
         attention_mask = kwargs.get("attention_mask", None)
 
         # only last token for inputs_ids if past is defined in kwargs
-        if past:
+        if past_key_values:
             inputs = tf.expand_dims(inputs[:, -1], -1)
 
         return {
             "input_ids": inputs,
             "attention_mask": attention_mask,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
             "use_cache": use_cache,
         }
 

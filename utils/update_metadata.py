@@ -58,6 +58,11 @@ PIPELINE_TAGS_AND_AUTO_MODELS = [
     ("image-segmentation", "MODEL_FOR_IMAGE_SEGMENTATION_MAPPING_NAMES", "AutoModelForImageSegmentation"),
     ("fill-mask", "MODEL_FOR_MASKED_LM_MAPPING_NAMES", "AutoModelForMaskedLM"),
     ("object-detection", "MODEL_FOR_OBJECT_DETECTION_MAPPING_NAMES", "AutoModelForObjectDetection"),
+    (
+        "zero-shot-object-detection",
+        "MODEL_FOR_ZERO_SHOT_OBJECT_DETECTION_MAPPING_NAMES",
+        "AutoModelForZeroShotObjectDetection",
+    ),
     ("question-answering", "MODEL_FOR_QUESTION_ANSWERING_MAPPING_NAMES", "AutoModelForQuestionAnswering"),
     ("text2text-generation", "MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES", "AutoModelForSeq2SeqLM"),
     ("text-classification", "MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES", "AutoModelForSequenceClassification"),
@@ -96,6 +101,8 @@ PIPELINE_TAGS_AND_AUTO_MODELS = [
         "_MODEL_FOR_ZERO_SHOT_IMAGE_CLASSIFICATION_MAPPING_NAMES",
         "AutoModel",
     ),
+    ("depth-estimation", "MODEL_FOR_DEPTH_ESTIMATION_MAPPING_NAMES", "AutoModelForDepthEstimation"),
+    ("video-classification", "MODEL_FOR_VIDEO_CLASSIFICATION_MAPPING_NAMES", "AutoModelForVideoClassification"),
 ]
 
 
@@ -204,7 +211,7 @@ def update_pipeline_and_auto_class_table(table):
 
 def update_metadata(token, commit_sha):
     """
-    Update the metada for the Transformers repo.
+    Update the metadata for the Transformers repo.
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
         repo = Repository(

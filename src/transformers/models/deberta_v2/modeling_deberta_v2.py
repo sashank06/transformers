@@ -487,7 +487,11 @@ class DebertaV2Encoder(nn.Module):
         if self.relative_attention and relative_pos is None:
             q = query_states.size(-2) if query_states is not None else hidden_states.size(-2)
             relative_pos = build_relative_position(
-                q, hidden_states.size(-2), bucket_size=self.position_buckets, max_position=self.max_relative_positions
+                q,
+                hidden_states.size(-2),
+                bucket_size=self.position_buckets,
+                max_position=self.max_relative_positions,
+                device=hidden_states.device,
             )
         return relative_pos
 
@@ -589,7 +593,7 @@ def make_log_bucket_position(relative_pos, bucket_size, max_position):
     return bucket_pos
 
 
-def build_relative_position(query_size, key_size, bucket_size=-1, max_position=-1):
+def build_relative_position(query_size, key_size, bucket_size=-1, max_position=-1, device=None):
     """
     Build relative position according to the query and key
 
@@ -602,13 +606,14 @@ def build_relative_position(query_size, key_size, bucket_size=-1, max_position=-
         key_size (int): the length of key
         bucket_size (int): the size of position bucket
         max_position (int): the maximum allowed absolute position
+        device (`torch.device`): the device on which tensors will be created.
 
     Return:
         `torch.LongTensor`: A tensor with shape [1, query_size, key_size]
-
     """
-    q_ids = torch.arange(0, query_size)
-    k_ids = torch.arange(0, key_size)
+
+    q_ids = torch.arange(0, query_size, device=device)
+    k_ids = torch.arange(0, key_size, device=device)
     rel_pos_ids = q_ids[:, None] - k_ids[None, :]
     if bucket_size > 0 and max_position > 0:
         rel_pos_ids = make_log_bucket_position(rel_pos_ids, bucket_size, max_position)
@@ -742,9 +747,7 @@ class DisentangledSelfAttention(nn.Module):
         if "p2c" in self.pos_att_type:
             scale_factor += 1
         scale = torch.sqrt(torch.tensor(query_layer.size(-1), dtype=torch.float) * scale_factor)
-        attention_scores = torch.bmm(query_layer, key_layer.transpose(-1, -2)) / torch.tensor(
-            scale, dtype=query_layer.dtype
-        )
+        attention_scores = torch.bmm(query_layer, key_layer.transpose(-1, -2)) / scale.to(dtype=query_layer.dtype)
         if self.relative_attention:
             rel_embeddings = self.pos_dropout(rel_embeddings)
             rel_att = self.disentangled_attention_bias(
@@ -780,7 +783,11 @@ class DisentangledSelfAttention(nn.Module):
         if relative_pos is None:
             q = query_layer.size(-2)
             relative_pos = build_relative_position(
-                q, key_layer.size(-2), bucket_size=self.position_buckets, max_position=self.max_relative_positions
+                q,
+                key_layer.size(-2),
+                bucket_size=self.position_buckets,
+                max_position=self.max_relative_positions,
+                device=query_layer.device,
             )
         if relative_pos.dim() == 2:
             relative_pos = relative_pos.unsqueeze(0).unsqueeze(0)
@@ -826,7 +833,7 @@ class DisentangledSelfAttention(nn.Module):
                 dim=-1,
                 index=c2p_pos.squeeze(0).expand([query_layer.size(0), query_layer.size(1), relative_pos.size(-1)]),
             )
-            score += c2p_att / torch.tensor(scale, dtype=c2p_att.dtype)
+            score += c2p_att / scale.to(dtype=c2p_att.dtype)
 
         # position->content
         if "p2c" in self.pos_att_type:
@@ -837,7 +844,8 @@ class DisentangledSelfAttention(nn.Module):
                     key_layer.size(-2),
                     bucket_size=self.position_buckets,
                     max_position=self.max_relative_positions,
-                ).to(query_layer.device)
+                    device=query_layer.device,
+                )
                 r_pos = r_pos.unsqueeze(0)
             else:
                 r_pos = relative_pos
@@ -849,7 +857,7 @@ class DisentangledSelfAttention(nn.Module):
                 dim=-1,
                 index=p2c_pos.squeeze(0).expand([query_layer.size(0), key_layer.size(-2), key_layer.size(-2)]),
             ).transpose(-1, -2)
-            score += p2c_att / torch.tensor(scale, dtype=p2c_att.dtype)
+            score += p2c_att / scale.to(dtype=p2c_att.dtype)
 
         return score
 
@@ -1141,7 +1149,7 @@ class DebertaV2Model(DebertaV2PreTrainedModel):
 # Copied from transformers.models.deberta.modeling_deberta.DebertaForMaskedLM with Deberta->DebertaV2
 class DebertaV2ForMaskedLM(DebertaV2PreTrainedModel):
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
-    _keys_to_ignore_on_load_missing = [r"position_ids", r"predictions.decoder.bias"]
+    _keys_to_ignore_on_load_missing = [r"position_ids", r"predictions.decoder.bias", "cls.predictions.decoder.weight"]
 
     def __init__(self, config):
         super().__init__(config)
@@ -1616,16 +1624,16 @@ class DebertaV2ForMultipleChoice(DebertaV2PreTrainedModel):
     )
     def forward(
         self,
-        input_ids=None,
-        attention_mask=None,
-        token_type_ids=None,
-        position_ids=None,
-        inputs_embeds=None,
-        labels=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
-    ):
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        inputs_embeds: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple, MultipleChoiceModelOutput]:
         r"""
         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
             Labels for computing the multiple choice classification loss. Indices should be in `[0, ...,

@@ -41,7 +41,7 @@ logger = logging.get_logger(__name__)
 
 # General docstring
 _CONFIG_FOR_DOC = "ViTConfig"
-_FEAT_EXTRACTOR_FOR_DOC = "ViTFeatureExtractor"
+_FEAT_EXTRACTOR_FOR_DOC = "ViTImageProcessor"
 
 # Base docstring
 _CHECKPOINT_FOR_DOC = "google/vit-base-patch16-224-in21k"
@@ -69,11 +69,14 @@ class TFViTEmbeddings(tf.keras.layers.Layer):
 
         num_patches = self.patch_embeddings.num_patches
         self.cls_token = self.add_weight(
-            shape=(1, 1, self.config.hidden_size), initializer="zeros", trainable=True, name="cls_token"
+            shape=(1, 1, self.config.hidden_size),
+            initializer=get_initializer(self.config.initializer_range),
+            trainable=True,
+            name="cls_token",
         )
         self.position_embeddings = self.add_weight(
             shape=(1, num_patches + 1, self.config.hidden_size),
-            initializer="zeros",
+            initializer=get_initializer(self.config.initializer_range),
             trainable=True,
             name="position_embeddings",
         )
@@ -626,8 +629,8 @@ VIT_START_DOCSTRING = r"""
 VIT_INPUTS_DOCSTRING = r"""
     Args:
         pixel_values (`np.ndarray`, `tf.Tensor`, `List[tf.Tensor]` ``Dict[str, tf.Tensor]` or `Dict[str, np.ndarray]` and each example must have the shape `(batch_size, num_channels, height, width)`):
-            Pixel values. Pixel values can be obtained using [`ViTFeatureExtractor`]. See
-            [`ViTFeatureExtractor.__call__`] for details.
+            Pixel values. Pixel values can be obtained using [`ViTImageProcessor`]. See [`ViTImageProcessor.__call__`]
+            for details.
 
         head_mask (`np.ndarray` or `tf.Tensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
             Mask to nullify selected heads of the self-attention modules. Mask values selected in `[0, 1]`:
