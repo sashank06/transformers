@@ -29,6 +29,7 @@ from .utils import (
     FEATURE_EXTRACTOR_NAME,
     PushToHubMixin,
     TensorType,
+    add_model_info_to_auto_map,
     cached_file,
     copy_func,
     download_url,
@@ -155,7 +156,15 @@ class BatchFeature(UserDict):
             as_tensor = jnp.array
             is_tensor = is_jax_tensor
         else:
-            as_tensor = np.asarray
+
+            def as_tensor(value, dtype=None):
+                if isinstance(value, (list, tuple)) and isinstance(value[0], (list, tuple, np.ndarray)):
+                    value_lens = [len(val) for val in value]
+                    if len(set(value_lens)) > 1 and dtype is None:
+                        # we have a ragged list so handle explicitly
+                        value = as_tensor([np.asarray(val) for val in value], dtype=object)
+                return np.asarray(value, dtype=dtype)
+
             is_tensor = is_numpy_array
 
         # Do the tensor conversion in batch
@@ -353,7 +362,7 @@ class FeatureExtractionMixin(PushToHubMixin):
         if push_to_hub:
             commit_message = kwargs.pop("commit_message", None)
             repo_id = kwargs.pop("repo_id", save_directory.split(os.path.sep)[-1])
-            repo_id, token = self._create_repo(repo_id, **kwargs)
+            repo_id = self._create_repo(repo_id, **kwargs)
             files_timestamps = self._get_files_timestamps(save_directory)
 
         # If we have a custom config, we copy the file defining it in the folder and set the attributes so it can be
@@ -369,7 +378,11 @@ class FeatureExtractionMixin(PushToHubMixin):
 
         if push_to_hub:
             self._upload_modified_files(
-                save_directory, repo_id, files_timestamps, commit_message=commit_message, token=token
+                save_directory,
+                repo_id,
+                files_timestamps,
+                commit_message=commit_message,
+                token=kwargs.get("use_auth_token"),
             )
 
         return [output_feature_extractor_file]
@@ -463,6 +476,11 @@ class FeatureExtractionMixin(PushToHubMixin):
         else:
             logger.info(
                 f"loading configuration file {feature_extractor_file} from cache at {resolved_feature_extractor_file}"
+            )
+
+        if "auto_map" in feature_extractor_dict and not is_local:
+            feature_extractor_dict["auto_map"] = add_model_info_to_auto_map(
+                feature_extractor_dict["auto_map"], pretrained_model_name_or_path
             )
 
         return feature_extractor_dict, kwargs

@@ -30,7 +30,8 @@ from typing import TYPE_CHECKING, Dict, Optional
 import numpy as np
 
 from . import __version__ as version
-from .utils import flatten_dict, is_datasets_available, is_torch_available, logging
+from .utils import flatten_dict, is_datasets_available, is_pandas_available, is_torch_available, logging
+from .utils.versions import importlib_metadata
 
 
 logger = logging.get_logger(__name__)
@@ -53,9 +54,19 @@ if _has_comet:
     except (ImportError, ValueError):
         _has_comet = False
 
-_has_neptune = importlib.util.find_spec("neptune") is not None
+_has_neptune = (
+    importlib.util.find_spec("neptune") is not None or importlib.util.find_spec("neptune-client") is not None
+)
 if TYPE_CHECKING and _has_neptune:
-    from neptune.new.metadata_containers.run import Run
+    try:
+        _neptune_version = importlib_metadata.version("neptune")
+        logger.info(f"Neptune version {_neptune_version} available.")
+    except importlib_metadata.PackageNotFoundError:
+        try:
+            _neptune_version = importlib_metadata.version("neptune-client")
+            logger.info(f"Neptune-client version {_neptune_version} available.")
+        except importlib_metadata.PackageNotFoundError:
+            _has_neptune = False
 
 from .trainer_callback import ProgressCallback, TrainerCallback  # noqa: E402
 from .trainer_utils import PREFIX_CHECKPOINT_DIR, BestRun, IntervalStrategy  # noqa: E402
@@ -119,6 +130,10 @@ def is_mlflow_available():
     return importlib.util.find_spec("mlflow") is not None
 
 
+def is_dagshub_available():
+    return None not in [importlib.util.find_spec("dagshub"), importlib.util.find_spec("mlflow")]
+
+
 def is_fairscale_available():
     return importlib.util.find_spec("fairscale") is not None
 
@@ -129,6 +144,16 @@ def is_neptune_available():
 
 def is_codecarbon_available():
     return importlib.util.find_spec("codecarbon") is not None
+
+
+def is_flytekit_available():
+    return importlib.util.find_spec("flytekit") is not None
+
+
+def is_flyte_deck_standard_available():
+    if not is_flytekit_available():
+        return False
+    return importlib.util.find_spec("flytekitplugins.deck") is not None
 
 
 def hp_params(trial):
@@ -342,7 +367,7 @@ def run_hp_search_ray(trainer, n_trials: int, direction: str, **kwargs) -> BestR
         **kwargs,
     )
     best_trial = analysis.get_best_trial(metric="objective", mode=direction[:3], scope=trainer.args.ray_scope)
-    best_run = BestRun(best_trial.trial_id, best_trial.last_result["objective"], best_trial.config)
+    best_run = BestRun(best_trial.trial_id, best_trial.last_result["objective"], best_trial.config, analysis)
     if _tb_writer is not None:
         trainer.add_callback(_tb_writer)
     return best_run
@@ -350,6 +375,7 @@ def run_hp_search_ray(trainer, n_trials: int, direction: str, **kwargs) -> BestR
 
 def run_hp_search_sigopt(trainer, n_trials: int, direction: str, **kwargs) -> BestRun:
     import sigopt
+
     from transformers.utils.versions import importlib_metadata
 
     if trainer.args.process_index == 0:
@@ -360,7 +386,7 @@ def run_hp_search_sigopt(trainer, n_trials: int, direction: str, **kwargs) -> Be
                 name="huggingface-tune",
                 type="offline",
                 parameters=trainer.hp_space(None),
-                metrics=[dict(name="objective", objective=direction, strategy="optimize")],
+                metrics=[{"name": "objective", "objective": direction, "strategy": "optimize"}],
                 parallel_bandwidth=1,
                 budget=n_trials,
             )
@@ -397,7 +423,7 @@ def run_hp_search_sigopt(trainer, n_trials: int, direction: str, **kwargs) -> Be
             experiment = conn.experiments().create(
                 name="huggingface-tune",
                 parameters=trainer.hp_space(None),
-                metrics=[dict(name="objective", objective=direction, strategy="optimize")],
+                metrics=[{"name": "objective", "objective": direction, "strategy": "optimize"}],
                 parallel_bandwidth=1,
                 observation_budget=n_trials,
                 project="huggingface",
@@ -420,7 +446,7 @@ def run_hp_search_sigopt(trainer, n_trials: int, direction: str, **kwargs) -> Be
                     metrics = trainer.evaluate()
                     trainer.objective = trainer.compute_objective(metrics)
 
-                values = [dict(name="objective", value=trainer.objective)]
+                values = [{"name": "objective", "value": trainer.objective}]
                 obs = conn.experiments(experiment.id).observations().create(suggestion=suggestion.id, values=values)
                 logger.info(f"[suggestion_id, observation_id]: [{suggestion.id}, {obs.id}]")
                 experiment = conn.experiments(experiment.id).fetch()
@@ -462,7 +488,7 @@ def run_hp_search_wandb(trainer, n_trials: int, direction: str, **kwargs) -> Bes
             break
     if not reporting_to_wandb:
         trainer.add_callback(WandbCallback())
-    trainer.args.report_to = "wandb"
+    trainer.args.report_to = ["wandb"]
     best_trial = {"run_id": None, "objective": None, "hyperparameters": None}
     sweep_id = kwargs.pop("sweep_id", None)
     project = kwargs.pop("project", None)
@@ -522,6 +548,8 @@ def get_available_reporting_integrations():
         integrations.append("azure_ml")
     if is_comet_available():
         integrations.append("comet_ml")
+    if is_dagshub_available():
+        integrations.append("dagshub")
     if is_mlflow_available():
         integrations.append("mlflow")
     if is_neptune_available():
@@ -611,9 +639,6 @@ class TensorBoardCallback(TrainerCallback):
                 if hasattr(model, "config") and model.config is not None:
                     model_config_json = model.config.to_json_string()
                     self.tb_writer.add_text("model_config", model_config_json)
-            # Version of TensorBoard coming from tensorboardX does not have this method.
-            if hasattr(self.tb_writer, "add_hparams"):
-                self.tb_writer.add_hparams(args.to_sanitized_dict(), metric_dict={})
 
     def on_log(self, args, state, control, logs=None, **kwargs):
         if not state.is_world_process_zero:
@@ -644,7 +669,7 @@ class TensorBoardCallback(TrainerCallback):
 
 class WandbCallback(TrainerCallback):
     """
-    A [`TrainerCallback`] that sends the logs to [Weight and Biases](https://www.wandb.com/).
+    A [`TrainerCallback`] that logs metrics, media, model checkpoints to [Weight and Biases](https://www.wandb.com/).
     """
 
     def __init__(self):
@@ -656,28 +681,44 @@ class WandbCallback(TrainerCallback):
 
             self._wandb = wandb
         self._initialized = False
-        # log outputs
-        self._log_model = os.getenv("WANDB_LOG_MODEL", "FALSE").upper() in ENV_VARS_TRUE_VALUES.union({"TRUE"})
+        # log model
+        if os.getenv("WANDB_LOG_MODEL", "FALSE").upper() in ENV_VARS_TRUE_VALUES.union({"TRUE"}):
+            DeprecationWarning(
+                f"Setting `WANDB_LOG_MODEL` as {os.getenv('WANDB_LOG_MODEL')} is deprecated and will be removed in "
+                "version 5 of transformers. Use one of `'end'` or `'checkpoint'` instead."
+            )
+            logger.info(f"Setting `WANDB_LOG_MODEL` from {os.getenv('WANDB_LOG_MODEL')} to `end` instead")
+            self._log_model = "end"
+        else:
+            self._log_model = os.getenv("WANDB_LOG_MODEL", "false").lower()
 
     def setup(self, args, state, model, **kwargs):
         """
         Setup the optional Weights & Biases (*wandb*) integration.
 
         One can subclass and override this method to customize the setup if needed. Find more information
-        [here](https://docs.wandb.ai/integrations/huggingface). You can also override the following environment
+        [here](https://docs.wandb.ai/guides/integrations/huggingface). You can also override the following environment
         variables:
 
         Environment:
-        - **WANDB_LOG_MODEL** (`bool`, *optional*, defaults to `False`):
-            Whether or not to log model as artifact at the end of training. Use along with
-            [`~transformers.TrainingArguments.load_best_model_at_end`] to upload best model.
-        - **WANDB_WATCH** (`str`, *optional*, defaults to `gradients`):
-            Can be `gradients`, `all` or `false`. Set to `false` to disable gradient logging or `all` to log gradients
-            and parameters.
-        - **WANDB_PROJECT** (`str`, *optional*, defaults to `huggingface`):
+        - **WANDB_LOG_MODEL** (`str`, *optional*, defaults to `"false"`):
+            Whether to log model and checkpoints during training. Can be `"end"`, `"checkpoint"` or `"false"`. If set
+            to `"end"`, the model will be uploaded at the end of training. If set to `"checkpoint"`, the checkpoint
+            will be uploaded every `args.save_steps` . If set to `"false"`, the model will not be uploaded. Use along
+            with [`~transformers.TrainingArguments.load_best_model_at_end`] to upload best model.
+
+            <Deprecated version="5.0">
+
+            Setting `WANDB_LOG_MODEL` as `bool` will be deprecated in version 5 of 🤗 Transformers.
+
+            </Deprecated>
+        - **WANDB_WATCH** (`str`, *optional* defaults to `"false"`):
+            Can be `"gradients"`, `"all"`, `"parameters"`, or `"false"`. Set to `"all"` to log gradients and
+            parameters.
+        - **WANDB_PROJECT** (`str`, *optional*, defaults to `"huggingface"`):
             Set this to a custom string to store results in a different project.
         - **WANDB_DISABLED** (`bool`, *optional*, defaults to `False`):
-            Whether or not to disable wandb entirely. Set `WANDB_DISABLED=True` to disable.
+            Whether to disable wandb entirely. Set `WANDB_DISABLED=true` to disable.
         """
         if self._wandb is None:
             return
@@ -694,15 +735,15 @@ class WandbCallback(TrainerCallback):
             trial_name = state.trial_name
             init_args = {}
             if trial_name is not None:
-                run_name = trial_name
+                init_args["name"] = trial_name
                 init_args["group"] = args.run_name
             else:
-                run_name = args.run_name
+                if not (args.run_name is None or args.run_name == args.output_dir):
+                    init_args["name"] = args.run_name
 
             if self._wandb.run is None:
                 self._wandb.init(
                     project=os.getenv("WANDB_PROJECT", "huggingface"),
-                    name=run_name,
                     **init_args,
                 )
             # add config parameters (run may have been created manually)
@@ -714,10 +755,9 @@ class WandbCallback(TrainerCallback):
                 self._wandb.define_metric("*", step_metric="train/global_step", step_sync=True)
 
             # keep track of model topology and gradients, unsupported on TPU
-            if not is_torch_tpu_available() and os.getenv("WANDB_WATCH") != "false":
-                self._wandb.watch(
-                    model, log=os.getenv("WANDB_WATCH", "gradients"), log_freq=max(100, args.logging_steps)
-                )
+            _watch_model = os.getenv("WANDB_WATCH", "false")
+            if not is_torch_tpu_available() and _watch_model in ("all", "parameters", "gradients"):
+                self._wandb.watch(model, log=_watch_model, log_freq=max(100, args.logging_steps))
 
     def on_train_begin(self, args, state, control, model=None, **kwargs):
         if self._wandb is None:
@@ -733,7 +773,7 @@ class WandbCallback(TrainerCallback):
     def on_train_end(self, args, state, control, model=None, tokenizer=None, **kwargs):
         if self._wandb is None:
             return
-        if self._log_model and self._initialized and state.is_world_process_zero:
+        if self._log_model in ("end", "checkpoint") and self._initialized and state.is_world_process_zero:
             from .trainer import Trainer
 
             fake_trainer = Trainer(args=args, model=model, tokenizer=tokenizer)
@@ -751,7 +791,13 @@ class WandbCallback(TrainerCallback):
                         "train/total_floss": state.total_flos,
                     }
                 )
-                artifact = self._wandb.Artifact(name=f"model-{self._wandb.run.id}", type="model", metadata=metadata)
+                logger.info("Logging model artifacts. ...")
+                model_name = (
+                    f"model-{self._wandb.run.id}"
+                    if (args.run_name is None or args.run_name == args.output_dir)
+                    else f"model-{self._wandb.run.name}"
+                )
+                artifact = self._wandb.Artifact(name=model_name, type="model", metadata=metadata)
                 for f in Path(temp_dir).glob("*"):
                     if f.is_file():
                         with artifact.new_file(f.name, mode="wb") as fa:
@@ -766,6 +812,26 @@ class WandbCallback(TrainerCallback):
         if state.is_world_process_zero:
             logs = rewrite_logs(logs)
             self._wandb.log({**logs, "train/global_step": state.global_step})
+
+    def on_save(self, args, state, control, **kwargs):
+        if self._log_model == "checkpoint" and self._initialized and state.is_world_process_zero:
+            checkpoint_metadata = {
+                k: v
+                for k, v in dict(self._wandb.summary).items()
+                if isinstance(v, numbers.Number) and not k.startswith("_")
+            }
+
+            ckpt_dir = f"checkpoint-{state.global_step}"
+            artifact_path = os.path.join(args.output_dir, ckpt_dir)
+            logger.info(f"Logging checkpoint artifacts in {ckpt_dir}. ...")
+            checkpoint_name = (
+                f"checkpoint-{self._wandb.run.id}"
+                if (args.run_name is None or args.run_name == args.output_dir)
+                else f"checkpoint-{self._wandb.run.name}"
+            )
+            artifact = self._wandb.Artifact(name=checkpoint_name, type="model", metadata=checkpoint_metadata)
+            artifact.add_dir(artifact_path)
+            self._wandb.log_artifact(artifact, aliases=[f"checkpoint-{state.global_step}"])
 
 
 class CometCallback(TrainerCallback):
@@ -1003,6 +1069,55 @@ class MLflowCallback(TrainerCallback):
             self._ml_flow.end_run()
 
 
+class DagsHubCallback(MLflowCallback):
+    """
+    A [`TrainerCallback`] that logs to [DagsHub](https://dagshub.com/). Extends [`MLflowCallback`]
+    """
+
+    def __init__(self):
+        super().__init__()
+        if not is_dagshub_available():
+            raise ImportError("DagsHubCallback requires dagshub to be installed. Run `pip install dagshub`.")
+
+        from dagshub.upload import Repo
+
+        self.Repo = Repo
+
+    def setup(self, *args, **kwargs):
+        """
+        Setup the DagsHub's Logging integration.
+
+        Environment:
+        - **HF_DAGSHUB_LOG_ARTIFACTS** (`str`, *optional*):
+                Whether to save the data and model artifacts for the experiment. Default to `False`.
+        """
+
+        self.log_artifacts = os.getenv("HF_DAGSHUB_LOG_ARTIFACTS", "FALSE").upper() in ENV_VARS_TRUE_VALUES
+        self.name = os.getenv("HF_DAGSHUB_MODEL_NAME") or "main"
+        self.remote = os.getenv("MLFLOW_TRACKING_URI")
+        self.repo = self.Repo(
+            owner=self.remote.split(os.sep)[-2],
+            name=self.remote.split(os.sep)[-1].split(".")[0],
+            branch=os.getenv("BRANCH") or "main",
+        )
+        self.path = Path("artifacts")
+
+        if self.remote is None:
+            raise RuntimeError(
+                "DagsHubCallback requires the `MLFLOW_TRACKING_URI` environment variable to be set. Did you run"
+                " `dagshub.init()`?"
+            )
+
+        super().setup(*args, **kwargs)
+
+    def on_train_end(self, args, state, control, **kwargs):
+        if self.log_artifacts:
+            if getattr(self, "train_dataloader", None):
+                torch.save(self.train_dataloader.dataset, os.path.join(args.output_dir, "dataset.pt"))
+
+            self.repo.directory(str(self.path)).add_dir(args.output_dir)
+
+
 class NeptuneMissingConfiguration(Exception):
     def __init__(self):
         super().__init__(
@@ -1015,33 +1130,32 @@ class NeptuneMissingConfiguration(Exception):
 
 
 class NeptuneCallback(TrainerCallback):
-    """TrainerCallback that sends the logs to [Neptune](https://neptune.ai).
+    """TrainerCallback that sends the logs to [Neptune](https://app.neptune.ai).
 
     Args:
-        api_token (`str`, optional):
-            Neptune API token obtained upon registration. You can leave this argument out if you have saved your token
-            to the `NEPTUNE_API_TOKEN` environment variable (strongly recommended). See full setup instructions in the
-            [docs](https://docs.neptune.ai/getting-started/installation).
-        project (`str`, optional):
-            Name of an existing Neptune project, in the form: "workspace-name/project-name". You can find and copy the
-            name from the project Settings -> Properties in Neptune. If None (default), the value of the
-            `NEPTUNE_PROJECT` environment variable will be used.
-        name (`str`, optional): Custom name for the run.
+        api_token (`str`, *optional*): Neptune API token obtained upon registration.
+            You can leave this argument out if you have saved your token to the `NEPTUNE_API_TOKEN` environment
+            variable (strongly recommended). See full setup instructions in the
+            [docs](https://docs.neptune.ai/setup/installation).
+        project (`str`, *optional*): Name of an existing Neptune project, in the form "workspace-name/project-name".
+            You can find and copy the name in Neptune from the project settings -> Properties. If None (default), the
+            value of the `NEPTUNE_PROJECT` environment variable is used.
+        name (`str`, *optional*): Custom name for the run.
         base_namespace (`str`, optional, defaults to "finetuning"): In the Neptune run, the root namespace
-            that will contain all of the logged metadata.
-        log_parameters (`bool`, optional, defaults to True):
+            that will contain all of the metadata logged by the callback.
+        log_parameters (`bool`, *optional*, defaults to `True`):
             If True, logs all Trainer arguments and model parameters provided by the Trainer.
-        log_checkpoints (`str`, optional, defaults to None):
-            If "same", uploads checkpoints whenever they are saved by the Trainer. If "last", uploads only the most
-            recently saved checkpoint. If "best", uploads the best checkpoint (among the ones saved by the Trainer). If
-            None, does not upload checkpoints.
-        run (`Run`, optional):
-            Pass a Neptune run object if you want to continue logging to an existing run. Read more about resuming runs
-            in the [docs](https://docs.neptune.ai/how-to-guides/neptune-api/resume-run).
-        **neptune_run_kwargs (optional):
+        log_checkpoints (`str`, *optional*): If "same", uploads checkpoints whenever they are saved by the Trainer.
+            If "last", uploads only the most recently saved checkpoint. If "best", uploads the best checkpoint (among
+            the ones saved by the Trainer). If `None`, does not upload checkpoints.
+        run (`Run`, *optional*): Pass a Neptune run object if you want to continue logging to an existing run.
+            Read more about resuming runs in the [docs](https://docs.neptune.ai/logging/to_existing_object).
+        **neptune_run_kwargs (*optional*):
             Additional keyword arguments to be passed directly to the
-            [neptune.init_run()](https://docs.neptune.ai/api-reference/neptune#.init_run) function when a new run is
-            created.
+            [`neptune.init_run()`](https://docs.neptune.ai/api/neptune#init_run) function when a new run is created.
+
+    For instructions and examples, see the [Transformers integration
+    guide](https://docs.neptune.ai/integrations/transformers) in the Neptune documentation.
     """
 
     integration_version_key = "source_code/integrations/transformers"
@@ -1058,23 +1172,23 @@ class NeptuneCallback(TrainerCallback):
         project: Optional[str] = None,
         name: Optional[str] = None,
         base_namespace: str = "finetuning",
-        run: Optional["Run"] = None,
+        run=None,
         log_parameters: bool = True,
         log_checkpoints: Optional[str] = None,
-        **neptune_run_kwargs
+        **neptune_run_kwargs,
     ):
         if not is_neptune_available():
             raise ValueError(
                 "NeptuneCallback requires the Neptune client library to be installed. "
-                "To install the library, run `pip install neptune-client`."
+                "To install the library, run `pip install neptune`."
             )
 
-        from neptune.new.metadata_containers.run import Run
-
         try:
-            from neptune.new.integrations.utils import verify_type
+            from neptune import Run
+            from neptune.internal.utils import verify_type
         except ImportError:
             from neptune.new.internal.utils import verify_type
+            from neptune.new.metadata_containers.run import Run
 
         verify_type("api_token", api_token, (str, type(None)))
         verify_type("project", project, (str, type(None)))
@@ -1113,8 +1227,12 @@ class NeptuneCallback(TrainerCallback):
             self._run = None
 
     def _initialize_run(self, **additional_neptune_kwargs):
-        from neptune.new import init_run
-        from neptune.new.exceptions import NeptuneMissingApiTokenException, NeptuneMissingProjectNameException
+        try:
+            from neptune import init_run
+            from neptune.exceptions import NeptuneMissingApiTokenException, NeptuneMissingProjectNameException
+        except ImportError:
+            from neptune.new import init_run
+            from neptune.new.exceptions import NeptuneMissingApiTokenException, NeptuneMissingProjectNameException
 
         self._stop_run_if_exists()
 
@@ -1138,7 +1256,7 @@ class NeptuneCallback(TrainerCallback):
                 return
 
             if self._run and not self._is_monitoring_run and not self._force_reset_monitoring_run:
-                self._initialize_run(run=self._run_id)
+                self._initialize_run(with_id=self._run_id)
                 self._is_monitoring_run = True
             else:
                 self._initialize_run()
@@ -1150,7 +1268,7 @@ class NeptuneCallback(TrainerCallback):
         else:
             if not self._run:
                 self._initialize_run(
-                    run=self._run_id,
+                    with_id=self._run_id,
                     capture_stdout=False,
                     capture_stderr=False,
                     capture_hardware_metrics=False,
@@ -1191,7 +1309,10 @@ class NeptuneCallback(TrainerCallback):
         if self._volatile_checkpoints_dir is not None:
             consistent_checkpoint_path = os.path.join(self._volatile_checkpoints_dir, checkpoint)
             try:
-                shutil.copytree(relative_path, os.path.join(consistent_checkpoint_path, relative_path))
+                # Remove leading ../ from a relative path.
+                cpkt_path = relative_path.replace("..", "").lstrip(os.path.sep)
+                copy_path = os.path.join(consistent_checkpoint_path, cpkt_path)
+                shutil.copytree(relative_path, copy_path)
                 target_path = consistent_checkpoint_path
             except IOError as e:
                 logger.warning(
@@ -1333,17 +1454,26 @@ class ClearMLCallback(TrainerCallback):
     def setup(self, args, state, model, tokenizer, **kwargs):
         if self._clearml is None:
             return
+        if self._initialized:
+            return
         if state.is_world_process_zero:
             logger.info("Automatic ClearML logging enabled.")
             if self._clearml_task is None:
-                self._clearml_task = self._clearml.Task.init(
-                    project_name=os.getenv("CLEARML_PROJECT", "HuggingFace Transformers"),
-                    task_name=os.getenv("CLEARML_TASK", "Trainer"),
-                    auto_connect_frameworks={"tensorboard": False, "pytorch": False},
-                    output_uri=True,
-                )
-                self._initialized = True
-                logger.info("ClearML Task has been initialized.")
+                # This might happen when running inside of a pipeline, where the task is already initialized
+                # from outside of Hugging Face
+                if self._clearml.Task.current_task():
+                    self._clearml_task = self._clearml.Task.current_task()
+                    self._initialized = True
+                    logger.info("External ClearML Task has been connected.")
+                else:
+                    self._clearml_task = self._clearml.Task.init(
+                        project_name=os.getenv("CLEARML_PROJECT", "HuggingFace Transformers"),
+                        task_name=os.getenv("CLEARML_TASK", "Trainer"),
+                        auto_connect_frameworks={"tensorboard": False, "pytorch": False},
+                        output_uri=True,
+                    )
+                    self._initialized = True
+                    logger.info("ClearML Task has been initialized.")
 
             self._clearml_task.connect(args, "Args")
             if hasattr(model, "config") and model.config is not None:
@@ -1414,6 +1544,69 @@ class ClearMLCallback(TrainerCallback):
             self._clearml_task.update_output_model(artifact_path, iteration=state.global_step, auto_delete_file=False)
 
 
+class FlyteCallback(TrainerCallback):
+    """A [`TrainerCallback`] that sends the logs to [Flyte](https://flyte.org/).
+    NOTE: This callback only works within a Flyte task.
+
+    Args:
+        save_log_history (`bool`, *optional*, defaults to `True`):
+            When set to True, the training logs are saved as a Flyte Deck.
+
+        sync_checkpoints (`bool`, *optional*, defaults to `True`):
+            When set to True, checkpoints are synced with Flyte and can be used to resume training in the case of an
+            interruption.
+
+    Example:
+
+    ```python
+    # Note: This example skips over some setup steps for brevity.
+    from flytekit import current_context, task
+
+
+    @task
+    def train_hf_transformer():
+        cp = current_context().checkpoint
+        trainer = Trainer(..., callbacks=[FlyteCallback()])
+        output = trainer.train(resume_from_checkpoint=cp.restore())
+    ```
+    """
+
+    def __init__(self, save_log_history: bool = True, sync_checkpoints: bool = True):
+        super().__init__()
+        if not is_flytekit_available():
+            raise ImportError("FlyteCallback requires flytekit to be installed. Run `pip install flytekit`.")
+
+        if not is_flyte_deck_standard_available() or not is_pandas_available():
+            logger.warning(
+                "Syncing log history requires both flytekitplugins-deck-standard and pandas to be installed. "
+                "Run `pip install flytekitplugins-deck-standard pandas` to enable this feature."
+            )
+            save_log_history = False
+
+        from flytekit import current_context
+
+        self.cp = current_context().checkpoint
+        self.save_log_history = save_log_history
+        self.sync_checkpoints = sync_checkpoints
+
+    def on_save(self, args, state, control, **kwargs):
+        if self.sync_checkpoints and state.is_world_process_zero:
+            ckpt_dir = f"checkpoint-{state.global_step}"
+            artifact_path = os.path.join(args.output_dir, ckpt_dir)
+
+            logger.info(f"Syncing checkpoint in {ckpt_dir} to Flyte. This may take time.")
+            self.cp.save(artifact_path)
+
+    def on_train_end(self, args, state, control, **kwargs):
+        if self.save_log_history:
+            import pandas as pd
+            from flytekit import Deck
+            from flytekitplugins.deck.renderer import TableRenderer
+
+            log_history_df = pd.DataFrame(state.log_history)
+            Deck("Log History", TableRenderer().to_html(log_history_df))
+
+
 INTEGRATION_TO_CALLBACK = {
     "azure_ml": AzureMLCallback,
     "comet_ml": CometCallback,
@@ -1423,6 +1616,8 @@ INTEGRATION_TO_CALLBACK = {
     "wandb": WandbCallback,
     "codecarbon": CodeCarbonCallback,
     "clearml": ClearMLCallback,
+    "dagshub": DagsHubCallback,
+    "flyte": FlyteCallback,
 }
 
 
