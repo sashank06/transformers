@@ -32,7 +32,7 @@ from ...modeling_outputs import (
     SequenceClassifierOutputWithPast,
 )
 from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import Conv1D, find_pruneable_heads_and_indices, prune_conv1d_layer
+from ...pytorch_utils import Conv1D, find_pruneable_heads_and_indices, prune_conv1d_layer, torch_custom_checkpointing
 from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging, replace_return_docstrings
 from .configuration_imagegpt import ImageGPTConfig
 
@@ -826,7 +826,7 @@ class ImageGPTModel(ImageGPTPreTrainedModel):
 
                     return custom_forward
 
-                outputs = torch.utils.checkpoint.checkpoint(
+                outputs = torch_custom_checkpointing(
                     create_custom_forward(block),
                     hidden_states,
                     None,
@@ -980,7 +980,7 @@ class ImageGPTForCausalImageModeling(ImageGPTPreTrainedModel):
         >>> image_processor = AutoImageProcessor.from_pretrained("openai/imagegpt-small")
         >>> model = ImageGPTForCausalImageModeling.from_pretrained("openai/imagegpt-small")
         >>> device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        >>> model.to(device)
+        >>> model.to(device)  # doctest: +IGNORE_RESULT
 
         >>> # unconditional generation of 8 images
         >>> batch_size = 4
@@ -1000,7 +1000,7 @@ class ImageGPTForCausalImageModeling(ImageGPTPreTrainedModel):
         ... ]  # convert color cluster tokens back to pixels
         >>> f, axes = plt.subplots(1, batch_size, dpi=300)
 
-        >>> for img, ax in zip(samples_img, axes):
+        >>> for img, ax in zip(samples_img, axes):  # doctest: +IGNORE_RESULT
         ...     ax.axis("off")
         ...     ax.imshow(img)
         ```"""

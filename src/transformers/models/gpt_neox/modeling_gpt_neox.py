@@ -36,6 +36,7 @@ from ...modeling_outputs import (
     TokenClassifierOutput,
 )
 from ...modeling_utils import PreTrainedModel
+from ...pytorch_utils import torch_custom_checkpointing
 from ...utils import logging
 from .configuration_gpt_neox import GPTNeoXConfig
 
@@ -88,6 +89,10 @@ class GPTNeoXAttention(nn.Module):
         super().__init__()
         self.num_attention_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
+        if self.hidden_size % self.num_attention_heads != 0:
+            raise ValueError(
+                "The hidden size is not divisble by the number of attention heads! Make sure to update them"
+            )
         self.head_size = self.hidden_size // self.num_attention_heads
         self.rotary_ndims = int(self.head_size * config.rotary_pct)
         max_positions = config.max_position_embeddings
@@ -553,7 +558,7 @@ class GPTNeoXModel(GPTNeoXPreTrainedModel):
 
                     return custom_forward
 
-                outputs = torch.utils.checkpoint.checkpoint(
+                outputs = torch_custom_checkpointing(
                     create_custom_forward(layer),
                     hidden_states,
                     attention_mask,

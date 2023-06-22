@@ -35,6 +35,7 @@ from ...modeling_outputs import (
     XVectorOutput,
 )
 from ...modeling_utils import PreTrainedModel
+from ...pytorch_utils import torch_custom_checkpointing
 from ...utils import (
     ModelOutput,
     add_code_sample_docstrings,
@@ -523,7 +524,7 @@ class Wav2Vec2ConformerFeatureEncoder(nn.Module):
 
                     return custom_forward
 
-                hidden_states = torch.utils.checkpoint.checkpoint(
+                hidden_states = torch_custom_checkpointing(
                     create_custom_forward(conv_layer),
                     hidden_states,
                 )
@@ -916,7 +917,7 @@ class Wav2Vec2ConformerEncoder(nn.Module):
 
                         return custom_forward
 
-                    layer_outputs = torch.utils.checkpoint.checkpoint(
+                    layer_outputs = torch_custom_checkpointing(
                         create_custom_forward(layer),
                         hidden_states,
                         attention_mask,
@@ -1610,6 +1611,8 @@ class Wav2Vec2ConformerForCTC(Wav2Vec2ConformerPreTrainedModel):
         self.wav2vec2_conformer = Wav2Vec2ConformerModel(config)
         self.dropout = nn.Dropout(config.final_dropout)
 
+        self.target_lang = target_lang
+
         if config.vocab_size is None:
             raise ValueError(
                 f"You are trying to instantiate {self.__class__} with a configuration that "
@@ -1621,13 +1624,6 @@ class Wav2Vec2ConformerForCTC(Wav2Vec2ConformerPreTrainedModel):
             config.output_hidden_size if hasattr(config, "add_adapter") and config.add_adapter else config.hidden_size
         )
         self.lm_head = nn.Linear(output_hidden_size, config.vocab_size)
-
-        if target_lang is not None and getattr(self.config, "adapter_attn_dim", None) is None:
-            raise ValueError(f"Cannot pass `target_lang`: {target_lang} if `config.adapter_attn_dim` is not defined.")
-        elif target_lang is None and getattr(self.config, "adapter_attn_dim", None) is not None:
-            logger.info("By default `target_lang` is set to 'eng'.")
-        elif target_lang is not None:
-            self.load_adapter(target_lang)
 
         # Initialize weights and apply final processing
         self.post_init()

@@ -25,6 +25,7 @@ from transformers.testing_utils import require_torch, slow, torch_device
 
 from ...test_configuration_common import ConfigTester
 from ...test_modeling_common import ModelTesterMixin, floats_tensor, ids_tensor
+from ...test_pipeline_mixin import PipelineTesterMixin
 
 
 TOLERANCE = 1e-4
@@ -201,9 +202,10 @@ class AutoformerModelTester:
 
 
 @require_torch
-class AutoformerModelTest(ModelTesterMixin, unittest.TestCase):
+class AutoformerModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase):
     all_model_classes = (AutoformerModel, AutoformerForPrediction) if is_torch_available() else ()
     all_generative_model_classes = (AutoformerForPrediction,) if is_torch_available() else ()
+    pipeline_model_mapping = {"feature-extraction": AutoformerModel} if is_torch_available() else {}
     test_pruning = False
     test_head_masking = False
     test_missing_keys = False
@@ -234,6 +236,12 @@ class AutoformerModelTest(ModelTesterMixin, unittest.TestCase):
 
     @unittest.skip(reason="Model has no tokens embeddings")
     def test_resize_tokens_embeddings(self):
+        pass
+
+    @unittest.skip(
+        reason="The model does not support GC + autocast + fp16: https://github.com/huggingface/transformers/pull/24247"
+    )
+    def test_training_gradient_checkpointing_autocast(self):
         pass
 
     # # Input is 'static_categorical_features' not 'input_ids'

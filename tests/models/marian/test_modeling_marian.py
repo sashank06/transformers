@@ -263,6 +263,12 @@ class MarianModelTest(ModelTesterMixin, GenerationTesterMixin, PipelineTesterMix
     def test_config(self):
         self.config_tester.run_common_tests()
 
+    @unittest.skip(
+        reason="The model does not support GC + autocast + fp16: https://github.com/huggingface/transformers/pull/24247"
+    )
+    def test_training_gradient_checkpointing_autocast(self):
+        pass
+
     def test_save_load_strict(self):
         config, inputs_dict = self.model_tester.prepare_config_and_inputs()
         for model_class in self.all_model_classes:
@@ -618,7 +624,7 @@ class TestMarian_FI_EN_V2(MarianIntegrationTest):
         return cls
 
     @slow
-    def test_batch_generation_en_fr(self):
+    def test_batch_generation_fi_en(self):
         self._assert_generated_batch_equal_expected()
 
 
