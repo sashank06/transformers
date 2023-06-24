@@ -15,7 +15,6 @@
 """ PyTorch SpeechT5 model."""
 
 import math
-import random
 import warnings
 from typing import List, Optional, Tuple, Union
 
@@ -35,7 +34,6 @@ from ...modeling_outputs import (
     Seq2SeqSpectrogramOutput,
 )
 from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import torch_custom_checkpointing
 from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging, replace_return_docstrings
 from .configuration_speecht5 import SpeechT5Config, SpeechT5HifiGanConfig
 
@@ -529,7 +527,7 @@ class SpeechT5FeatureEncoder(nn.Module):
 
                     return custom_forward
 
-                hidden_states = torch_custom_checkpointing(
+                hidden_states = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(conv_layer),
                     hidden_states,
                 )
@@ -1382,7 +1380,7 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = np.random.uniform(0, 1)
+            dropout_probability = torch.rand([])
 
             skip_the_layer = self.training and (dropout_probability < self.layerdrop)
             if not skip_the_layer or deepspeed_zero3_is_enabled:
@@ -1395,7 +1393,7 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
 
                         return custom_forward
 
-                    layer_outputs = torch_custom_checkpointing(
+                    layer_outputs = torch.utils.checkpoint.checkpoint(
                         create_custom_forward(encoder_layer),
                         hidden_states,
                         attention_mask,
@@ -1707,7 +1705,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.rand([])
 
             skip_the_layer = self.training and (dropout_probability < self.layerdrop)
             if skip_the_layer and not deepspeed_zero3_is_enabled:
@@ -1724,7 +1722,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
 
                     return custom_forward
 
-                layer_outputs = torch_custom_checkpointing(
+                layer_outputs = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(decoder_layer),
                     hidden_states,
                     attention_mask,

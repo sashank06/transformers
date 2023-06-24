@@ -16,7 +16,6 @@
 
 
 import math
-import random
 from typing import List, Optional, Tuple, Union
 
 import torch
@@ -32,7 +31,6 @@ from ...modeling_outputs import (
     Seq2SeqModelOutput,
 )
 from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import torch_custom_checkpointing
 from ...utils import (
     add_code_sample_docstrings,
     add_end_docstrings,
@@ -814,7 +812,7 @@ class M2M100Encoder(M2M100PreTrainedModel):
                 encoder_states = encoder_states + (hidden_states,)
 
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.rand([])
 
             skip_the_layer = True if self.training and (dropout_probability < self.layerdrop) else False
             if not skip_the_layer or deepspeed_zero3_is_enabled:
@@ -828,7 +826,7 @@ class M2M100Encoder(M2M100PreTrainedModel):
 
                         return custom_forward
 
-                    layer_outputs = torch_custom_checkpointing(
+                    layer_outputs = torch.utils.checkpoint.checkpoint(
                         create_custom_forward(encoder_layer),
                         hidden_states,
                         attention_mask,
@@ -1058,7 +1056,7 @@ class M2M100Decoder(M2M100PreTrainedModel):
                 all_hidden_states += (hidden_states,)
 
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.rand([])
 
             skip_the_layer = True if self.training and (dropout_probability < self.layerdrop) else False
             if not skip_the_layer or deepspeed_zero3_is_enabled:
@@ -1075,7 +1073,7 @@ class M2M100Decoder(M2M100PreTrainedModel):
 
                         return custom_forward
 
-                    layer_outputs = torch_custom_checkpointing(
+                    layer_outputs = torch.utils.checkpoint.checkpoint(
                         create_custom_forward(decoder_layer),
                         hidden_states,
                         combined_attention_mask,

@@ -15,7 +15,6 @@
 """ PyTorch Mask2Former model."""
 
 import math
-import random
 import warnings
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
@@ -36,7 +35,6 @@ from ...file_utils import (
 )
 from ...modeling_outputs import BaseModelOutput, BaseModelOutputWithCrossAttentions
 from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import torch_custom_checkpointing
 from ...utils import logging
 from .configuration_mask2former import Mask2FormerConfig
 
@@ -1863,7 +1861,7 @@ class Mask2FormerMaskedAttentionDecoder(nn.Module):
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
 
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.rand([])
 
             if self.training and (dropout_probability < self.layerdrop):
                 continue
@@ -1876,7 +1874,7 @@ class Mask2FormerMaskedAttentionDecoder(nn.Module):
 
                     return custom_forward
 
-                layer_outputs = torch_custom_checkpointing(
+                layer_outputs = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(decoder_layer),
                     hidden_states,
                     attention_mask,

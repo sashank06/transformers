@@ -16,12 +16,12 @@
 
 
 import math
-import random
 from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
+from torch.utils.checkpoint import checkpoint
 
 from ...activations import ACT2FN
 from ...deepspeed import is_deepspeed_zero3_enabled
@@ -32,7 +32,6 @@ from ...modeling_outputs import (
     Seq2SeqMoEOutput,
 )
 from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import torch_custom_checkpointing
 from ...utils import (
     add_end_docstrings,
     add_start_docstrings,
@@ -1143,7 +1142,7 @@ class NllbMoeEncoder(NllbMoePreTrainedModel):
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.rand([])
             if self.training and (dropout_probability < self.layerdrop):  # skip the layer
                 layer_outputs = (None, None, None)
             else:
@@ -1155,7 +1154,7 @@ class NllbMoeEncoder(NllbMoePreTrainedModel):
 
                         return custom_forward
 
-                    layer_outputs = torch_custom_checkpointing(
+                    layer_outputs = torch.utils.checkpoint.checkpoint(
                         create_custom_forward(encoder_layer),
                         hidden_states,
                         attention_mask,
@@ -1405,7 +1404,7 @@ class NllbMoeDecoder(NllbMoePreTrainedModel):
                 all_hidden_states += (hidden_states,)
 
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.rand([])
 
             skip_the_layer = True if self.training and (dropout_probability < self.layerdrop) else False
             if not skip_the_layer or deepspeed_zero3_is_enabled:
@@ -1428,7 +1427,7 @@ class NllbMoeDecoder(NllbMoePreTrainedModel):
 
                         return custom_forward
 
-                    layer_outputs = torch_custom_checkpointing(
+                    layer_outputs = checkpoint(
                         create_custom_forward(decoder_layer),
                         hidden_states,
                         combined_attention_mask,

@@ -14,7 +14,6 @@
 # limitations under the License.
 """ PyTorch Informer model."""
 
-import random
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -30,7 +29,6 @@ from ...modeling_outputs import (
     Seq2SeqTSPredictionOutput,
 )
 from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import torch_custom_checkpointing
 from ...time_series_utils import NegativeBinomialOutput, NormalOutput, StudentTOutput
 from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging, replace_return_docstrings
 from .configuration_informer import InformerConfig
@@ -1206,7 +1204,7 @@ class InformerEncoder(InformerPreTrainedModel):
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.rand([])
             if self.training and (dropout_probability < self.layerdrop):  # skip the layer
                 layer_outputs = (None, None)
             else:
@@ -1218,14 +1216,14 @@ class InformerEncoder(InformerPreTrainedModel):
 
                         return custom_forward
 
-                    layer_outputs = torch_custom_checkpointing(
+                    layer_outputs = torch.utils.checkpoint.checkpoint(
                         create_custom_forward(encoder_layer),
                         hidden_states,
                         attention_mask,
                         (head_mask[idx] if head_mask is not None else None),
                     )
                     if conv_layer is not None:
-                        output = torch_custom_checkpointing(conv_layer, layer_outputs[0])
+                        output = torch.utils.checkpoint.checkpoint(conv_layer, layer_outputs[0])
                         layer_outputs = (output,) + layer_outputs[1:]
                 else:
                     layer_outputs = encoder_layer(
@@ -1426,7 +1424,7 @@ class InformerDecoder(InformerPreTrainedModel):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
-            dropout_probability = random.uniform(0, 1)
+            dropout_probability = torch.rand([])
             if self.training and (dropout_probability < self.layerdrop):
                 continue
 
@@ -1441,7 +1439,7 @@ class InformerDecoder(InformerPreTrainedModel):
 
                     return custom_forward
 
-                layer_outputs = torch_custom_checkpointing(
+                layer_outputs = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(decoder_layer),
                     hidden_states,
                     attention_mask,

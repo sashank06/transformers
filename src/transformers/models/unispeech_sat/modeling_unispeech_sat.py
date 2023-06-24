@@ -36,7 +36,6 @@ from ...modeling_outputs import (
     XVectorOutput,
 )
 from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import torch_custom_checkpointing
 from ...utils import (
     ModelOutput,
     add_code_sample_docstrings,
@@ -406,7 +405,7 @@ class UniSpeechSatFeatureEncoder(nn.Module):
 
                     return custom_forward
 
-                hidden_states = torch_custom_checkpointing(
+                hidden_states = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(conv_layer),
                     hidden_states,
                 )
@@ -776,7 +775,7 @@ class UniSpeechSatEncoder(nn.Module):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = np.random.uniform(0, 1)
+            dropout_probability = torch.rand([])
 
             skip_the_layer = True if self.training and (dropout_probability < self.config.layerdrop) else False
             if not skip_the_layer or deepspeed_zero3_is_enabled:
@@ -789,7 +788,7 @@ class UniSpeechSatEncoder(nn.Module):
 
                         return custom_forward
 
-                    layer_outputs = torch_custom_checkpointing(
+                    layer_outputs = torch.utils.checkpoint.checkpoint(
                         create_custom_forward(layer),
                         hidden_states,
                         attention_mask,
@@ -865,7 +864,7 @@ class UniSpeechSatEncoderStableLayerNorm(nn.Module):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = np.random.uniform(0, 1)
+            dropout_probability = torch.rand([])
 
             skip_the_layer = True if self.training and (dropout_probability < self.config.layerdrop) else False
             if not skip_the_layer or deepspeed_zero3_is_enabled:
@@ -879,7 +878,7 @@ class UniSpeechSatEncoderStableLayerNorm(nn.Module):
 
                         return custom_forward
 
-                    layer_outputs = torch_custom_checkpointing(
+                    layer_outputs = torch.utils.checkpoint.checkpoint(
                         create_custom_forward(layer),
                         hidden_states,
                         attention_mask,
